@@ -10,9 +10,8 @@ import {
 import {
   ChevronDown,
   ChevronUp,
-  Film,
+  Code2,
   Layers,
-  Loader2,
   Minimize2,
   RotateCcw,
   Scissors,
@@ -22,28 +21,6 @@ import {
 } from 'lucide-react';
 import { EngineeringMetrics, POLYMER_SPECS } from '../cad/engineeringMath';
 import {
-  CompositedRecorderHandle,
-  ExplainerAudioDirector,
-  ExportMediaFormat,
-  VoiceEngineMode,
-  startExplainerVideoRecorder,
-  transcodeMediaBlob,
-} from '../cad/explainerMedia';
-import {
-  DEFAULT_EXPLAINER_SCENES,
-  EXPLAINER_DURATION_SEC,
-  ExplainerFrameState,
-  ExplainerSegment,
-  MaleVoiceId,
-  VideoResolutionId,
-  evaluateExplainerFrame,
-} from '../cad/explainerTimeline';
-import {
-  PRESENTATION_PROMPT_PRESETS,
-  PresentationPlan,
-  validatePresentationPrompt,
-} from '../cad/presentationGenerator';
-import {
   ASSEMBLY_SEQUENCE,
   DEFAULT_SLAB_PARAMETERS,
   SLAB_COMPONENTS,
@@ -52,14 +29,20 @@ import {
   VIEW_PRESETS,
   ViewPresetId,
 } from '../cad/types';
-import { ExplainerTourOverlay } from './ExplainerTourOverlay';
+import {
+  VIDEO_CATEGORIES,
+  VideoFormatCategory,
+  validateCreateVideoPrompt,
+} from '../cad/videoCreator';
 import { SlabViewport3D } from './SlabViewport3D';
 
 interface CadStudioViewProps {
   params: SlabParameters;
   metrics: EngineeringMetrics;
+  cadOnlyMode?: boolean;
   onChangeParams: (next: SlabParameters) => void;
-  onOpenFilmStudio?: () => void;
+  onCreateVideoFromPrompt?: (prompt: string, category?: VideoFormatCategory) => void;
+  onOpenEmbed?: () => void;
 }
 
 type DockMode = 'views' | 'explode' | 'parameters' | 'assembly';
@@ -114,7 +97,10 @@ const SliderField: React.FC<SliderFieldProps> = ({
 export const CadStudioView: React.FC<CadStudioViewProps> = ({
   params,
   metrics,
+  cadOnlyMode = false,
   onChangeParams,
+  onCreateVideoFromPrompt,
+  onOpenEmbed,
 }) => {
   const [activeView, setActiveView] = useState<ViewPresetId>('assembled');
   const [explodeAmount, setExplodeAmount] = useState<number>(0);
@@ -128,392 +114,30 @@ export const CadStudioView: React.FC<CadStudioViewProps> = ({
   const [inspectorOpen, setInspectorOpen] = useState<boolean>(false);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
 
-  // 90-Second Launch Film, Hybrid Soundtrack & Male Voiceover State
-  const [explainerActive, setExplainerActive] = useState<boolean>(false);
-  const [explainerPlaying, setExplainerPlaying] = useState<boolean>(false);
-  const [explainerRecording, setExplainerRecording] = useState<boolean>(false);
-  const [explainerTimeSec, setExplainerTimeSec] = useState<number>(0);
-  const [explainerScenes, setExplainerScenes] = useState<ExplainerSegment[]>(
-    DEFAULT_EXPLAINER_SCENES
-  );
-  const [voiceMode, setVoiceMode] = useState<VoiceEngineMode>('checking');
-  const [maleVoice, setMaleVoice] = useState<MaleVoiceId>('Charon');
-  const [exportResolution, setExportResolution] = useState<VideoResolutionId>('1080p');
-  const [explainerMuted, setExplainerMuted] = useState<boolean>(false);
-  const [includeReferenceIntro, setIncludeReferenceIntro] = useState<boolean>(true);
-  const [recordedWebmBlob, setRecordedWebmBlob] = useState<Blob | null>(null);
-  const [exportingLabel, setExportingLabel] = useState<string | null>(null);
-
-  // Prompt-to-Presentation Creative Video Generation State
-  const [presentationPrompt, setPresentationPrompt] = useState<string>('');
-  const [presentationGenerating, setPresentationGenerating] = useState<boolean>(false);
-  const [presentationError, setPresentationError] = useState<string | null>(null);
-  const [activePresentationTitle, setActivePresentationTitle] = useState<string | null>(null);
-  const [activePresentationOrigin, setActivePresentationOrigin] = useState<
-    'gemini' | 'studio-director' | null
-  >(null);
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const refVideoElRef = useRef<HTMLVideoElement | null>(null);
-  const audioDirectorRef = useRef<ExplainerAudioDirector | null>(null);
-  const recorderRef = useRef<CompositedRecorderHandle | null>(null);
-  const pendingExportFormatRef = useRef<ExportMediaFormat | null>(null);
-  const lastSpokenSegIdRef = useRef<string | null>(null);
+  // Quick Create Video text box state
+  const [quickVideoPrompt, setQuickVideoPrompt] = useState<string>('');
+  const [quickVideoError, setQuickVideoError] = useState<string | null>(null);
 
   // Framer Motion spring value driving the 3D Z-axis slab separation
   const explodeMotion = useMotionValue(0);
   const explodeScaleX = useTransform(explodeMotion, [0, 1], [0, 1]);
   const animRef = useRef<ReturnType<typeof animate> | null>(null);
 
-  const getAudioDirector = () => {
-    if (!audioDirectorRef.current) {
-      audioDirectorRef.current = new ExplainerAudioDirector();
-    }
-    return audioDirectorRef.current;
-  };
-
-  const triggerBlobDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-  };
-
   useEffect(() => {
     return () => {
       animRef.current?.stop();
-      audioDirectorRef.current?.dispose();
     };
   }, []);
 
-  const totalFilmDuration =
-    explainerScenes[explainerScenes.length - 1]?.endSec || EXPLAINER_DURATION_SEC;
-
-  const directorFrame: ExplainerFrameState | null = explainerActive
-    ? evaluateExplainerFrame(explainerTimeSec, explainerScenes)
-    : null;
-
-  useEffect(() => {
-    if (directorFrame && recorderRef.current) {
-      recorderRef.current.updateOverlayFrame(directorFrame, params.serialNumber, totalFilmDuration);
-    }
-  }, [directorFrame, params.serialNumber, totalFilmDuration]);
-
-  // 90-second wall-clock timeline playback loop
-  useEffect(() => {
-    if (!explainerActive || !explainerPlaying) return;
-    let rafId = 0;
-    let prev = performance.now();
-
-    const tick = (now: number) => {
-      const dt = Math.min(0.25, Math.max(0.001, (now - prev) / 1000));
-      prev = now;
-      setExplainerTimeSec((curr) => {
-        const next = curr + dt;
-        if (next >= totalFilmDuration) {
-          setExplainerPlaying(false);
-          audioDirectorRef.current?.stopSoundtrack();
-          if (recorderRef.current) {
-            const activeRec = recorderRef.current;
-            const autoFmt = pendingExportFormatRef.current || (exportResolution === '480p' ? 'mp4-regular' : exportResolution === '2160p' ? 'mp4-4k' : 'mp4-hd');
-            recorderRef.current = null;
-            pendingExportFormatRef.current = null;
-            setExplainerRecording(false);
-            setExportingLabel(`Transcoding ${autoFmt.toUpperCase()} via FFmpeg...`);
-            void activeRec
-              .stop()
-              .then(async (blob) => {
-                setRecordedWebmBlob(blob);
-                const out = await transcodeMediaBlob(blob, autoFmt, params.serialNumber);
-                triggerBlobDownload(out.blob, out.filename);
-              })
-              .catch(() => {
-                // ignore cancellation
-              })
-              .finally(() => setExportingLabel(null));
-          }
-          return totalFilmDuration;
-        }
-        return next;
-      });
-      rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
-  }, [explainerActive, explainerPlaying, params.serialNumber, totalFilmDuration, exportResolution]);
-
-  // Trigger male voiceover, soundtrack modulation & synchronized SFX on scene transitions
-  useEffect(() => {
-    if (!explainerActive || !explainerPlaying || !directorFrame) return;
-    const inRefIntro = includeReferenceIntro && directorFrame.timeSec < 10.0;
-    const dir = getAudioDirector();
-    dir.setSoundtrackDucked(inRefIntro);
-
-    if (inRefIntro) {
-      if (lastSpokenSegIdRef.current !== 'ref-intro') {
-        lastSpokenSegIdRef.current = 'ref-intro';
-        dir.stopSpeech();
-      }
-      return;
-    }
-
-    const seg = directorFrame.segment;
-    if (lastSpokenSegIdRef.current === seg.id) return;
-    lastSpokenSegIdRef.current = seg.id;
-
-    dir.modulateSoundtrack(seg.index);
-    dir.playSceneSfx(seg.id, seg.sfxStyle);
-    void dir.speakSegment(seg.id, seg.narration, maleVoice).then((mode) => {
-      setVoiceMode(mode);
-    });
-  }, [explainerActive, explainerPlaying, directorFrame, maleVoice, includeReferenceIntro]);
-
-  const handleStartExplainer = () => {
-    animRef.current?.stop();
-    setInspectorOpen(false);
-    setExplainerScenes(DEFAULT_EXPLAINER_SCENES);
-    setActivePresentationTitle(null);
-    setActivePresentationOrigin(null);
-    setIncludeReferenceIntro(true);
-    setRecordedWebmBlob(null);
-    setExplainerActive(true);
-    setExplainerTimeSec(0);
-    lastSpokenSegIdRef.current = null;
-    const dir = getAudioDirector();
-    if (refVideoElRef.current) {
-      dir.attachReferenceVideo(refVideoElRef.current);
-    }
-    dir.setMuted(explainerMuted);
-    dir.setSoundtrackDucked(true);
-    dir.startSoundtrack();
-    void dir.prefetchAll(maleVoice, DEFAULT_EXPLAINER_SCENES).then((mode) => setVoiceMode(mode));
-    setExplainerPlaying(true);
-  };
-
-  const handleGeneratePresentation = async (promptOverride?: string) => {
-    const rawText = typeof promptOverride === 'string' ? promptOverride : presentationPrompt;
-    if (typeof promptOverride === 'string') {
-      setPresentationPrompt(promptOverride);
-    }
-    const validation = validatePresentationPrompt(rawText);
+  const handleLaunchQuickVideo = (overridePrompt?: string, category?: VideoFormatCategory) => {
+    const raw = typeof overridePrompt === 'string' ? overridePrompt : quickVideoPrompt;
+    const validation = validateCreateVideoPrompt(raw);
     if (!validation.ok) {
-      setPresentationError(validation.error || 'Describe what you want to see.');
+      setQuickVideoError(validation.error || 'Describe the VCA video you want to create.');
       return;
     }
-
-    setPresentationError(null);
-    setPresentationGenerating(true);
-
-    try {
-      const res = await fetch('/api/generate-presentation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: validation.cleaned,
-          params,
-        }),
-      });
-      const data = (await res.json()) as { plan?: PresentationPlan; error?: string };
-      if (!res.ok || !data.plan) {
-        setPresentationError(data.error || 'Could not generate presentation video.');
-        return;
-      }
-
-      const plan = data.plan;
-      animRef.current?.stop();
-      setInspectorOpen(false);
-      setExplainerScenes(plan.scenes);
-      setActivePresentationTitle(plan.title);
-      setActivePresentationOrigin(plan.generatedBy);
-      setIncludeReferenceIntro(false);
-      setRecordedWebmBlob(null);
-      setExplainerTimeSec(0);
-      lastSpokenSegIdRef.current = null;
-
-      const dir = getAudioDirector();
-      dir.stopSpeech();
-      dir.setMuted(explainerMuted);
-      dir.setSoundtrackDucked(false);
-      dir.startSoundtrack();
-      void dir.prefetchAll(maleVoice, plan.scenes).then((mode) => setVoiceMode(mode));
-
-      setExplainerActive(true);
-      setExplainerPlaying(true);
-    } catch {
-      setPresentationError('Network error generating presentation video. Try again.');
-    } finally {
-      setPresentationGenerating(false);
-    }
-  };
-
-  const handleToggleExplainerPlay = () => {
-    const dir = getAudioDirector();
-    if (explainerPlaying) {
-      setExplainerPlaying(false);
-      dir.stopSpeech();
-      dir.stopSoundtrack();
-    } else {
-      if (explainerTimeSec >= totalFilmDuration) {
-        setExplainerTimeSec(0);
-      }
-      lastSpokenSegIdRef.current = null;
-      dir.setMuted(explainerMuted);
-      dir.startSoundtrack();
-      setExplainerPlaying(true);
-    }
-  };
-
-  const handleRestartExplainer = () => {
-    const dir = getAudioDirector();
-    dir.stopSpeech();
-    lastSpokenSegIdRef.current = null;
-    setExplainerTimeSec(0);
-    dir.setMuted(explainerMuted);
-    dir.startSoundtrack();
-    setExplainerPlaying(true);
-  };
-
-  const handleSeekExplainer = (sec: number) => {
-    const dir = getAudioDirector();
-    dir.stopSpeech();
-    lastSpokenSegIdRef.current = null;
-    setExplainerTimeSec(Math.max(0, Math.min(totalFilmDuration, sec)));
-  };
-
-  const handleToggleMute = () => {
-    const nextMuted = !explainerMuted;
-    setExplainerMuted(nextMuted);
-    getAudioDirector().setMuted(nextMuted);
-  };
-
-  const handleChangeMaleVoice = (nextVoice: MaleVoiceId) => {
-    setMaleVoice(nextVoice);
-    lastSpokenSegIdRef.current = null;
-    const dir = getAudioDirector();
-    dir.stopSpeech();
-    void dir.prefetchAll(nextVoice, explainerScenes).then((mode) => setVoiceMode(mode));
-  };
-
-  const handleStopRecord = () => {
-    const activeRec = recorderRef.current;
-    const pendingFmt =
-      pendingExportFormatRef.current ||
-      (exportResolution === '480p'
-        ? 'mp4-regular'
-        : exportResolution === '2160p'
-          ? 'mp4-4k'
-          : 'mp4-hd');
-    recorderRef.current = null;
-    pendingExportFormatRef.current = null;
-    setExplainerRecording(false);
-    setExplainerPlaying(false);
-    audioDirectorRef.current?.stopSpeech();
-    audioDirectorRef.current?.stopSoundtrack();
-    if (!activeRec) return;
-
-    setExportingLabel(`Transcoding ${pendingFmt.toUpperCase()} via FFmpeg...`);
-    void activeRec
-      .stop()
-      .then(async (blob) => {
-        setRecordedWebmBlob(blob);
-        const out = await transcodeMediaBlob(blob, pendingFmt, params.serialNumber);
-        triggerBlobDownload(out.blob, out.filename);
-      })
-      .finally(() => setExportingLabel(null));
-  };
-
-  const handleStartRecord90s = async (autoFormat?: ExportMediaFormat) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const targetRes: VideoResolutionId =
-      autoFormat === 'mp4-regular'
-        ? '480p'
-        : autoFormat === 'mp4-4k'
-          ? '2160p'
-          : autoFormat === 'mp4-hd'
-            ? '1080p'
-            : exportResolution;
-    setExportResolution(targetRes);
-    pendingExportFormatRef.current = autoFormat || null;
-
-    const dir = getAudioDirector();
-    if (refVideoElRef.current) {
-      dir.attachReferenceVideo(refVideoElRef.current);
-    }
-    dir.stopSpeech();
-    dir.setMuted(false);
-    setExplainerMuted(false);
-    dir.setSoundtrackDucked(includeReferenceIntro);
-    dir.startSoundtrack();
-    const mode = await dir.prefetchAll(maleVoice, explainerScenes);
-    setVoiceMode(mode);
-
-    const recorder = startExplainerVideoRecorder(
-      canvas,
-      dir.getOutputMediaStream(),
-      targetRes,
-      {
-        getRefVideo: () => refVideoElRef.current,
-        includeReferenceIntro,
-      }
-    );
-    recorderRef.current = recorder;
-    lastSpokenSegIdRef.current = null;
-    setExplainerTimeSec(0);
-    setExplainerRecording(true);
-    setExplainerPlaying(true);
-  };
-
-  const handleDownloadFormat = async (format: ExportMediaFormat) => {
-    if (format === 'mp3') {
-      try {
-        setExportingLabel('Rendering 90s MP3 Audio (192 kbps)...');
-        const dir = getAudioDirector();
-        const sourceBlob = recordedWebmBlob
-          ? recordedWebmBlob
-          : await dir.renderFullAudioMixWav(maleVoice, explainerScenes, includeReferenceIntro);
-        const out = await transcodeMediaBlob(sourceBlob, 'mp3', params.serialNumber);
-        triggerBlobDownload(out.blob, out.filename);
-      } finally {
-        setExportingLabel(null);
-      }
-      return;
-    }
-
-    if (recordedWebmBlob) {
-      try {
-        setExportingLabel(
-          format === 'mp4-regular'
-            ? 'Transcoding Regular MP4 (480p)...'
-            : 'Transcoding Full HD MP4 (1080p)...'
-        );
-        const out = await transcodeMediaBlob(recordedWebmBlob, format, params.serialNumber);
-        triggerBlobDownload(out.blob, out.filename);
-      } finally {
-        setExportingLabel(null);
-      }
-      return;
-    }
-
-    await handleStartRecord90s(format);
-  };
-
-  const handleExitExplainer = () => {
-    if (recorderRef.current) {
-      recorderRef.current = null;
-      pendingExportFormatRef.current = null;
-      setExplainerRecording(false);
-    }
-    setExplainerPlaying(false);
-    setExplainerActive(false);
-    lastSpokenSegIdRef.current = null;
-    audioDirectorRef.current?.stopSpeech();
-    audioDirectorRef.current?.stopSoundtrack();
+    setQuickVideoError(null);
+    onCreateVideoFromPrompt?.(validation.cleaned, category);
   };
 
   const animateExplodeTo = (target: number) => {
@@ -590,95 +214,35 @@ export const CadStudioView: React.FC<CadStudioViewProps> = ({
           metrics={metrics}
           activeView={activeView}
           explodeMotion={explodeMotion}
-          selectedComponent={directorFrame ? directorFrame.highlightComponent : selectedComponent}
-          sectionEnabled={directorFrame ? directorFrame.sectionEnabled : sectionEnabled}
-          sectionOffsetMm={directorFrame ? directorFrame.sectionOffsetMm : sectionOffsetMm}
-          showCallouts={
-            directorFrame
-              ? directorFrame.showCallouts && directorFrame.explode >= 0.3
-              : showCallouts
-          }
-          directorFrame={directorFrame}
-          onCanvasReady={(canvas) => {
-            canvasRef.current = canvas;
-          }}
+          selectedComponent={selectedComponent}
+          sectionEnabled={sectionEnabled}
+          sectionOffsetMm={sectionOffsetMm}
+          showCallouts={showCallouts}
           onSelectComponent={handleSelectComponentFromScene}
         />
 
-        {/* Quiet Top-Left Engineering Telemetry Readout (Hidden during Cinema Mode to avoid toolbar overlap) */}
-        {!directorFrame && (
-          <div className="pointer-events-none absolute top-4 left-5 z-10 max-w-md space-y-1">
-            <div className="flex items-center gap-2 text-xs font-mono text-[#94A3B8]">
-              <span className="text-[#38BDF8] font-semibold">{params.serialNumber}</span>
-              <span aria-hidden="true">·</span>
-              <span>
-                {params.overallWidthMm.toFixed(1)} × {params.overallHeightMm.toFixed(1)} ×{' '}
-                {params.overallThicknessMm.toFixed(1)} mm
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>{metrics.estimatedTotalMassG} g</span>
-            </div>
-            <h1 className="text-sm font-semibold text-white">{currentPreset.label}</h1>
-            <p className="text-xs text-[#94A3B8] leading-relaxed">{currentPreset.description}</p>
-            {metrics.warnings.length > 0 && (
-              <p className="text-xs text-amber-400 font-medium pt-0.5">
-                Design Alert: {metrics.warnings[0]}
-              </p>
-            )}
+        {/* Quiet Top-Left Engineering Telemetry Readout */}
+        <div className="pointer-events-none absolute top-4 left-5 z-10 max-w-md space-y-1">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#94A3B8]">
+            <span className="text-[#38BDF8] font-semibold">{params.serialNumber}</span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {params.overallWidthMm.toFixed(1)} × {params.overallHeightMm.toFixed(1)} ×{' '}
+              {params.overallThicknessMm.toFixed(1)} mm
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{metrics.estimatedTotalMassG} g</span>
           </div>
-        )}
+          <h1 className="text-sm font-semibold text-white">{currentPreset.label}</h1>
+          <p className="text-xs text-[#94A3B8] leading-relaxed">{currentPreset.description}</p>
+          {metrics.warnings.length > 0 && (
+            <p className="text-xs text-amber-400 font-medium pt-0.5">
+              Design Alert: {metrics.warnings[0]}
+            </p>
+          )}
+        </div>
 
-        {/* 90-Second Launch Film Cinema Overlay OR Regular CAD Dock */}
-        {explainerActive && directorFrame ? (
-          <ExplainerTourOverlay
-            playing={explainerPlaying}
-            recording={explainerRecording}
-            includeReferenceIntro={includeReferenceIntro}
-            hasRecordedClip={Boolean(recordedWebmBlob)}
-            exportingLabel={exportingLabel}
-            frame={directorFrame}
-            scenes={explainerScenes}
-            voiceMode={voiceMode}
-            maleVoice={maleVoice}
-            resolution={exportResolution}
-            muted={explainerMuted}
-            serialNumber={params.serialNumber}
-            presentationTitle={activePresentationTitle}
-            presentationOrigin={activePresentationOrigin}
-            presentationPrompt={presentationPrompt}
-            generatingPresentation={presentationGenerating}
-            presentationError={presentationError}
-            onChangePrompt={(val) => {
-              setPresentationPrompt(val);
-              if (presentationError) setPresentationError(null);
-            }}
-            onGeneratePresentation={(override) => {
-              void handleGeneratePresentation(override);
-            }}
-            onAttachRefVideo={(el) => {
-              refVideoElRef.current = el;
-              if (el) {
-                getAudioDirector().attachReferenceVideo(el);
-              }
-            }}
-            onToggleReferenceIntro={() => setIncludeReferenceIntro((v) => !v)}
-            onTogglePlay={handleToggleExplainerPlay}
-            onRestart={handleRestartExplainer}
-            onSeek={handleSeekExplainer}
-            onChangeMaleVoice={handleChangeMaleVoice}
-            onChangeResolution={setExportResolution}
-            onChangeScenes={setExplainerScenes}
-            onToggleMute={handleToggleMute}
-            onStartRecord90s={(autoFormat) => {
-              void handleStartRecord90s(autoFormat);
-            }}
-            onStopRecord={handleStopRecord}
-            onDownloadFormat={(format) => {
-              void handleDownloadFormat(format);
-            }}
-            onExit={handleExitExplainer}
-          />
-        ) : (
+        {/* Bottom Interactive CAD Controls & Create Video Quick Box */}
         <div
           className={`absolute left-1/2 -translate-x-1/2 z-20 transition-transform duration-200 ${
             dockCollapsed ? 'bottom-3 translate-y-[calc(100%-34px)]' : 'bottom-4 translate-y-0'
@@ -706,79 +270,67 @@ export const CadStudioView: React.FC<CadStudioViewProps> = ({
           </div>
 
           <div className="bg-[#0D121B] border border-[#1B2332] rounded-lg p-2.5 shadow-2xl">
-            {/* Simple Presentation Video Prompt Control */}
+            {/* Quick Create Video Text Box (Hidden in CAD-Only Public Mode) */}
+            {!cadOnlyMode && (
             <div className="pb-2 mb-2 border-b border-[#1B2332] space-y-1.5">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void handleGeneratePresentation();
+                  handleLaunchQuickVideo();
                 }}
                 className="flex items-center gap-2"
               >
-                <label htmlFor="presentation-video-prompt" className="sr-only">
-                  Presentation video prompt
+                <label htmlFor="quick-create-video-prompt" className="sr-only">
+                  Create Video prompt
                 </label>
                 <div className="flex-1 min-w-0 flex items-center gap-2 bg-[#11161F] border border-[#1B2332] focus-within:border-[#0EA5E9] rounded-md px-3 py-1.5">
                   <Video className="w-4 h-4 text-[#38BDF8] shrink-0" />
                   <input
-                    id="presentation-video-prompt"
+                    id="quick-create-video-prompt"
                     type="text"
-                    value={presentationPrompt}
+                    value={quickVideoPrompt}
                     onChange={(e) => {
-                      setPresentationPrompt(e.target.value);
-                      if (presentationError) setPresentationError(null);
+                      setQuickVideoPrompt(e.target.value);
+                      if (quickVideoError) setQuickVideoError(null);
                     }}
-                    placeholder="Describe the presentation video you want to see (e.g. 'Macro NFC chip orbit with RF waves & smartphone tap')..."
-                    aria-label="Presentation video prompt"
-                    disabled={presentationGenerating}
+                    placeholder="Create Video: pitch deck, presentation, ad, or exploded prototype blueprint with voiceover only..."
+                    aria-label="Create Video prompt"
                     className="w-full min-w-0 bg-transparent text-xs text-white placeholder-[#64748B] outline-none"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={presentationGenerating}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-[#0EA5E9] hover:bg-[#0284C7] disabled:opacity-60 text-white whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-md bg-[#0EA5E9] hover:bg-[#0284C7] text-white whitespace-nowrap shrink-0 cursor-pointer transition-colors"
                 >
-                  {presentationGenerating ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Generating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Film className="w-3.5 h-3.5" />
-                      <span>Generate Video</span>
-                    </>
-                  )}
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Create Video</span>
                 </button>
               </form>
 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 overflow-x-auto">
                   <span className="text-[11px] text-[#64748B] whitespace-nowrap shrink-0">
-                    Try:
+                    Formats:
                   </span>
-                  {PRESENTATION_PROMPT_PRESETS.map((preset) => (
+                  {VIDEO_CATEGORIES.map((cat) => (
                     <button
-                      key={preset.label}
+                      key={cat.id}
                       type="button"
-                      disabled={presentationGenerating}
-                      onClick={() => {
-                        void handleGeneratePresentation(preset.prompt);
-                      }}
+                      onClick={() => handleLaunchQuickVideo(cat.starterPrompt, cat.id)}
                       className="px-2 py-0.5 text-[11px] font-medium rounded border border-[#1B2332] bg-[#11161F] hover:border-[#38BDF8] text-[#94A3B8] hover:text-white whitespace-nowrap shrink-0 cursor-pointer transition-colors"
                     >
-                      {preset.label}
+                      {cat.shortLabel}
                     </button>
                   ))}
                 </div>
-                {presentationError && (
+                {quickVideoError && (
                   <p role="alert" className="text-[11px] text-rose-400 font-medium">
-                    {presentationError}
+                    {quickVideoError}
                   </p>
                 )}
               </div>
             </div>
+            )}
 
             {/* Dock Tab Strip + Quick Actions */}
             <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-[#1B2332]">
@@ -824,17 +376,16 @@ export const CadStudioView: React.FC<CadStudioViewProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5">
-                <motion.button
-                  type="button"
-                  onClick={handleStartExplainer}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border border-[#38BDF8]/60 bg-[#0EA5E9]/15 text-[#38BDF8] hover:bg-[#0EA5E9] hover:text-white whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-                >
-                  <Film className="w-3.5 h-3.5 shrink-0" />
-                  <span>90s Launch Film</span>
-                </motion.button>
+                {onOpenEmbed && (
+                  <button
+                    type="button"
+                    onClick={onOpenEmbed}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border border-[#1B2332] bg-[#11161F] text-[#CBD5E1] hover:border-[#38BDF8] hover:text-white whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Code2 className="w-3.5 h-3.5 text-[#38BDF8]" />
+                    <span>Embed Blueprint</span>
+                  </button>
+                )}
                 <motion.button
                   type="button"
                   onClick={handleToggleExplode}
@@ -1073,7 +624,6 @@ export const CadStudioView: React.FC<CadStudioViewProps> = ({
             )}
           </div>
         </div>
-        )}
       </div>
 
       {/* Side-by-Side Parametric CAD & Component Inspector Panel (Zero Collision w/ 3D Canvas) */}

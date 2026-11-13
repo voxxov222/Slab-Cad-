@@ -6,8 +6,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { EngineeringMetrics } from '../cad/engineeringMath';
 import { buildCinematicStage, CinematicStageHandles } from '../cad/cinematicStage3D';
-import { ExplainerFrameState } from '../cad/explainerTimeline';
-import { FilmFrameState } from '../cad/filmProduction';
+import {
+  CreatedVideoFrameState,
+  PositionedLeaderCallout,
+  RawLeaderPin,
+  layoutLeaderCallouts,
+} from '../cad/videoCreator';
 import { buildVcaSlabAssembly, SlabAssemblyHandles } from '../cad/slabGeometry';
 import {
   SLAB_COMPONENTS,
@@ -26,19 +30,15 @@ interface SlabViewport3DProps {
   sectionEnabled: boolean;
   sectionOffsetMm: number;
   showCallouts: boolean;
-  directorFrame?: ExplainerFrameState | null;
-  filmFrame?: FilmFrameState | null;
+  videoFrame?: CreatedVideoFrameState | null;
+  blueprintMode?: boolean;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
+  onLiveCalloutsUpdate?: (data: {
+    callouts: PositionedLeaderCallout[];
+    viewportW: number;
+    viewportH: number;
+  }) => void;
   onSelectComponent: (id: SlabComponentId | null) => void;
-}
-
-interface ProjectedCallout {
-  id: SlabComponentId;
-  calloutNumber: number;
-  shortName: string;
-  x: number;
-  y: number;
-  visible: boolean;
 }
 
 // Module-level scratch vectors to avoid GC inside render/animation loop
@@ -70,14 +70,15 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
   sectionEnabled,
   sectionOffsetMm,
   showCallouts,
-  directorFrame = null,
-  filmFrame = null,
+  videoFrame = null,
+  blueprintMode = false,
   onCanvasReady,
+  onLiveCalloutsUpdate,
   onSelectComponent,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [webglError, setWebglError] = useState<string | null>(null);
-  const [callouts, setCallouts] = useState<ProjectedCallout[]>([]);
+  const [callouts, setCallouts] = useState<PositionedLeaderCallout[]>([]);
 
   // Mutable refs so scene updates never tear down WebGLRenderer
   const stateRef = useRef({
@@ -88,9 +89,10 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     sectionEnabled,
     sectionOffsetMm,
     showCallouts,
-    directorFrame,
-    filmFrame,
+    videoFrame,
+    blueprintMode,
     onCanvasReady,
+    onLiveCalloutsUpdate,
     onSelectComponent,
   });
   stateRef.current.params = params;
@@ -99,9 +101,10 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
   stateRef.current.sectionEnabled = sectionEnabled;
   stateRef.current.sectionOffsetMm = sectionOffsetMm;
   stateRef.current.showCallouts = showCallouts;
-  stateRef.current.directorFrame = directorFrame;
-  stateRef.current.filmFrame = filmFrame;
+  stateRef.current.videoFrame = videoFrame;
+  stateRef.current.blueprintMode = blueprintMode;
   stateRef.current.onCanvasReady = onCanvasReady;
+  stateRef.current.onLiveCalloutsUpdate = onLiveCalloutsUpdate;
   stateRef.current.onSelectComponent = onSelectComponent;
 
   const engineRef = useRef<{
@@ -265,27 +268,32 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     };
 
     const projectCallouts = (handles: SlabAssemblyHandles) => {
+      const rect = renderer.domElement.getBoundingClientRect();
       if (!stateRef.current.showCallouts) {
         setCallouts((prev) => (prev.length === 0 ? prev : []));
+        stateRef.current.onLiveCalloutsUpdate?.({
+          callouts: [],
+          viewportW: rect.width,
+          viewportH: rect.height,
+        });
         return;
       }
       const anchorMap: Record<SlabComponentId, [number, number]> = {
-        front_housing: [-46, -54],
-        perimeter_bezel: [-46, -12],
-        hologram_qr_seal: [32, 62],
-        cert_label: [-22, 60],
-        nfc_antenna: [44, 48],
-        nfc_chip: [44, 34],
-        nfc_compartment: [44, 20],
-        inner_sleeve: [-44, -34],
-        trading_card: [44, -18],
-        card_support_frame: [44, -38],
-        tamper_weld_pins: [-46, 36],
-        rear_housing: [46, -58],
+        front_housing: [-34, -44],
+        perimeter_bezel: [-36, -6],
+        hologram_qr_seal: [28, 52],
+        cert_label: [-18, 52],
+        nfc_antenna: [30, 44],
+        nfc_chip: [22, 34],
+        nfc_compartment: [32, 22],
+        inner_sleeve: [-28, -28],
+        trading_card: [26, -14],
+        card_support_frame: [30, -34],
+        tamper_weld_pins: [-36, 34],
+        rear_housing: [34, -52],
       };
 
-      const rect = renderer.domElement.getBoundingClientRect();
-      const list: ProjectedCallout[] = [];
+      const pins: RawLeaderPin[] = [];
       for (const meta of SLAB_COMPONENTS) {
         const grp = handles.components[meta.id];
         if (!grp) continue;
@@ -293,18 +301,25 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
         _scratchVec.set(ax, ay, grp.position.z);
         _scratchVec.project(camera);
         const visible = _scratchVec.z < 1 && _scratchVec.z > -1;
-        const x = ((_scratchVec.x + 1) / 2) * rect.width;
-        const y = ((-_scratchVec.y + 1) / 2) * rect.height;
-        list.push({
+        const px = ((_scratchVec.x + 1) / 2) * rect.width;
+        const py = ((-_scratchVec.y + 1) / 2) * rect.height;
+        pins.push({
           id: meta.id,
           calloutNumber: meta.calloutNumber,
           shortName: meta.shortName,
-          x,
-          y,
+          material: meta.material,
+          px,
+          py,
           visible,
         });
       }
-      setCallouts(list);
+      const positioned = layoutLeaderCallouts(pins, rect.width, rect.height);
+      setCallouts(positioned);
+      stateRef.current.onLiveCalloutsUpdate?.({
+        callouts: positioned,
+        viewportW: rect.width,
+        viewportH: rect.height,
+      });
     };
 
     const requestRender = () => {
@@ -319,38 +334,36 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
         lastTime = now;
 
         const eng = engineRef.current;
-        const dirFrame = stateRef.current.directorFrame;
-        const activeFilmFrame = stateRef.current.filmFrame;
+        const vFrame = stateRef.current.videoFrame;
         let needsAnotherFrame = false;
 
-        if (dirFrame && eng) {
+        if (vFrame && eng) {
           controls.enabled = false;
           eng.cameraTransitioning = false;
-          camera.position.set(...dirFrame.cameraPos);
-          controls.target.set(...dirFrame.target);
-          if (Math.abs(camera.fov - dirFrame.fov) > 0.05) {
-            camera.fov = dirFrame.fov;
+          const vStyle = vFrame.visualStyle || 'studio';
+          const isBlueprint = vStyle === 'blueprint' || vStyle === 'exploded-blueprint';
+          scene.background = new THREE.Color(isBlueprint ? 0x041224 : 0x03050a);
+          camera.position.set(...vFrame.cameraPos);
+          controls.target.set(...vFrame.target);
+          if (Math.abs(camera.fov - vFrame.fov) > 0.05) {
+            camera.fov = vFrame.fov;
             camera.updateProjectionMatrix();
           }
-          eng.slabHandles?.updateExplode(dirFrame.explode);
-          eng.slabHandles?.setHousingXray(dirFrame.housingOpacity);
-          eng.cinematicStage?.update(dirFrame, stateRef.current.params);
-        } else if (activeFilmFrame && eng) {
-          controls.enabled = false;
-          eng.cameraTransitioning = false;
-          camera.position.set(...activeFilmFrame.cameraPos);
-          controls.target.set(...activeFilmFrame.target);
-          if (Math.abs(camera.fov - activeFilmFrame.fov) > 0.05) {
-            camera.fov = activeFilmFrame.fov;
-            camera.updateProjectionMatrix();
-          }
-          if (eng.cinematicStage) {
-            eng.cinematicStage.root.visible = false;
-          }
-          eng.slabHandles?.setHousingXray(1);
-          eng.slabHandles?.applyAssemblyChoreography(activeFilmFrame.assembly);
+          eng.slabHandles?.setBlueprintStyle(isBlueprint);
+          eng.slabHandles?.updateExplode(vFrame.explode);
+          const effectiveOpacity =
+            vStyle === 'xray-nfc'
+              ? Math.min(vFrame.housingOpacity, 0.32)
+              : isBlueprint
+                ? Math.min(vFrame.housingOpacity, 0.72)
+                : vFrame.housingOpacity;
+          eng.slabHandles?.setHousingXray(effectiveOpacity);
+          eng.cinematicStage?.update(vFrame, stateRef.current.params);
         } else {
           controls.enabled = true;
+          const bpActive = Boolean(stateRef.current.blueprintMode);
+          scene.background = new THREE.Color(bpActive ? 0x041224 : 0x03050a);
+          eng?.slabHandles?.setBlueprintStyle(bpActive);
           if (Math.abs(camera.fov - 36) > 0.05) {
             camera.fov = 36;
             camera.updateProjectionMatrix();
@@ -358,7 +371,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
           if (eng?.cinematicStage) {
             eng.cinematicStage.root.visible = false;
           }
-          eng?.slabHandles?.setHousingXray(1);
+          eng?.slabHandles?.setHousingXray(bpActive ? 0.66 : 1);
           // Sync exploded layer separation from Framer Motion spring value
           eng?.slabHandles?.updateExplode(stateRef.current.explodeCurrent);
 
@@ -607,7 +620,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
 
   // Trigger smooth camera preset transition
   useEffect(() => {
-    if (directorFrame || filmFrame) return;
+    if (videoFrame) return;
     const preset = VIEW_PRESETS.find((v) => v.id === activeView);
     const eng = engineRef.current;
     if (!preset || !eng) return;
@@ -615,42 +628,84 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     _targetControlsPos.set(...preset.target);
     eng.cameraTransitioning = true;
     eng.requestRender();
-  }, [activeView, directorFrame, filmFrame]);
+  }, [activeView, videoFrame]);
 
-  // Trigger render when directorFrame or filmFrame advances
+  // Trigger render when videoFrame or blueprintMode advances
   useEffect(() => {
-    if (!directorFrame && !filmFrame) return;
     engineRef.current?.requestRender();
-  }, [directorFrame, filmFrame]);
+  }, [videoFrame, blueprintMode]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#090C11]">
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Callout markers projected from 3D assembly components */}
+      {/* Live Component Indexing Labels (#01-#12) with Staggered Elbow Leader Lines */}
       {showCallouts && callouts.length > 0 && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden z-10">
-          {callouts.map(
-            (c) =>
-              c.visible && (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => onSelectComponent(c.id)}
-                  style={{
-                    transform: `translate(${Math.round(c.x)}px, ${Math.round(c.y)}px) translate(-50%, -50%)`,
-                  }}
-                  className={`pointer-events-auto absolute top-0 left-0 flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
-                    selectedComponent === c.id
-                      ? 'bg-[#0EA5E9] text-white border-[#38BDF8]'
-                      : 'bg-[#0D121B]/95 text-[#E2E8F0] border-[#263248] hover:border-[#0EA5E9]'
-                  }`}
-                >
-                  <span className="font-semibold">{c.calloutNumber}</span>
-                  <span className="hidden sm:inline whitespace-nowrap">{c.shortName}</span>
-                </button>
-              )
-          )}
+        <div
+          data-testid="live-indexing-labels"
+          className="pointer-events-none absolute inset-0 overflow-hidden z-10"
+        >
+          <svg
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+          >
+            {callouts.map((c) => {
+              const isHighlighted = selectedComponent === c.id;
+              const stroke = isHighlighted ? '#F59E0B' : '#38BDF8';
+              const elbowX =
+                c.side === 'left'
+                  ? Math.min(c.px, c.lx + 36)
+                  : Math.max(c.px, c.lx - 36);
+              return (
+                <g key={`line-${c.id}`}>
+                  <polyline
+                    points={`${Math.round(c.px)},${Math.round(c.py)} ${Math.round(elbowX)},${Math.round(c.ly)} ${Math.round(c.lx)},${Math.round(c.ly)}`}
+                    fill="none"
+                    stroke={stroke}
+                    strokeOpacity={isHighlighted ? 0.95 : 0.65}
+                    strokeWidth={isHighlighted ? 1.75 : 1.15}
+                  />
+                  <circle
+                    cx={Math.round(c.px)}
+                    cy={Math.round(c.py)}
+                    r={isHighlighted ? 3.5 : 2.6}
+                    fill={stroke}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {callouts.map((c) => {
+            const isHighlighted = selectedComponent === c.id;
+            const numLabel = `#${String(c.calloutNumber).padStart(2, '0')}`;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onSelectComponent(c.id)}
+                title={`${numLabel} ${c.shortName} · ${c.material}`}
+                style={{
+                  top: `${c.ly}px`,
+                  left: `${c.lx}px`,
+                  transform:
+                    c.side === 'left'
+                      ? 'translate(0%, -50%)'
+                      : 'translate(-100%, -50%)',
+                }}
+                className={`pointer-events-auto absolute flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-colors cursor-pointer whitespace-nowrap shadow-md ${
+                  isHighlighted
+                    ? 'bg-[#0EA5E9] text-white border-[#F59E0B]'
+                    : 'bg-[#05101E]/92 text-[#E2E8F0] border-[#1E3A5F] hover:border-[#38BDF8]'
+                }`}
+              >
+                <span className={isHighlighted ? 'font-bold text-white' : 'font-bold text-[#38BDF8]'}>
+                  {numLabel}
+                </span>
+                <span className="hidden sm:inline">{c.shortName}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 

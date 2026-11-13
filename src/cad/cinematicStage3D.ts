@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { ExplainerFrameState } from './explainerTimeline';
+import { CreatedVideoFrameState } from './videoCreator';
 import { SlabParameters } from './types';
 
 export interface CinematicStageHandles {
   root: THREE.Group;
-  update: (frame: ExplainerFrameState, params: SlabParameters) => void;
+  update: (frame: CreatedVideoFrameState, params: SlabParameters) => void;
   dispose: () => void;
 }
 
@@ -342,7 +342,7 @@ export function buildCinematicStage(initialSerial: string): CinematicStageHandle
   const scratchPos = new THREE.Vector3();
   const scratchAccent = new THREE.Color(0x38bdf8);
 
-  const update = (frame: ExplainerFrameState, params: SlabParameters) => {
+  const update = (frame: CreatedVideoFrameState, params: SlabParameters) => {
     root.visible = true;
     const t = frame.timeSec;
     scratchAccent.set(frame.accentHex || '#38bdf8');
@@ -358,8 +358,8 @@ export function buildCinematicStage(initialSerial: string): CinematicStageHandle
     dustPoints.rotation.y = t * 0.035;
     dustMat.opacity = (0.28 + 0.14 * Math.sin(t * 0.8)) * frame.fadeOpacity;
 
-    // Volumetric light sweep (Scene 01 or outline-lit reveals)
-    if (frame.segment.id === 'scene-01-reveal' || frame.outlineTraceProgress > 0.35) {
+    // Volumetric light sweep (opening hero shot or outline-lit reveals)
+    if (frame.segment.id === 'vca-scene-1' || frame.outlineTraceProgress > 0.35) {
       sweepBeam.visible = true;
       const sweepPhase = Math.sin(frame.segmentLocalT * Math.PI);
       sweepBeam.position.x = -75 + frame.segmentLocalT * 150;

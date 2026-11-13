@@ -42,6 +42,7 @@ export interface SlabAssemblyHandles {
   setSelectedComponent: (selected: SlabComponentId | null) => void;
   setClipPlane: (plane: THREE.Plane | null) => void;
   setHousingXray: (opacityFactor: number) => void;
+  setBlueprintStyle: (enabled: boolean) => void;
 }
 
 /**
@@ -744,6 +745,23 @@ export function buildVcaSlabAssembly(
     }
   };
 
+  let blueprintActive = false;
+  const setBlueprintStyle = (enabled: boolean) => {
+    if (blueprintActive === enabled) return;
+    blueprintActive = enabled;
+    if (enabled) {
+      opticalEdgeMat.color.setHex(0x38bdf8);
+      opticalEdgeMat.opacity = 0.92;
+      cradleOpticalMat.color.setHex(0x38bdf8);
+      cradleOpticalMat.opacity = 0.72;
+    } else {
+      opticalEdgeMat.color.setHex(0xbae6fd);
+      opticalEdgeMat.opacity = 0.28;
+      cradleOpticalMat.color.setHex(0xbae6fd);
+      cradleOpticalMat.opacity = 0.54;
+    }
+  };
+
   return {
     root,
     components,
@@ -754,5 +772,6 @@ export function buildVcaSlabAssembly(
     setSelectedComponent,
     setClipPlane,
     setHousingXray,
+    setBlueprintStyle,
   };
 }
