@@ -72,7 +72,19 @@ Download live, parameter-synced fabrication files directly from the links below:
 
 ---
 
-## 4. Bill of Materials (BOM)
+## 4. VCA Certification Label Prototype Specification (Front & Back)
+
+| Label Surface | Security Feature | Manufacturing & Graphic Specification |
+| --- | --- | --- |
+| **Envelope & Carrier** | Dual-Sided Archival Insert | `72.0 × 25.0 × 0.86 mm` Teslin / synthetic security stock housing the sealed 13.56 MHz NFC coil & IC inside the label carrier |
+| **Front (+Z)** | Classic VCA Blue & Red Split Trim | Royal Blue (`#0A2E73`) left / Crimson Red (`#B91C1C`) right perimeter frame with metallic chrome bevel |
+| **Front (+Z)** | Fugitive-Ink Guilloche & Barcode | Pearl-white anti-tamper cyan guilloche pattern, card title & set, Code-128 1D barcode, centered chrome `VCA` hologram seal, right-aligned collector #, `VCA 10 · GEM MINT`, and `VCA-26-00202` |
+| **Back (-Z)** | Midnight-Navy UV VCA Watermark | Repeating UV `VCA` security pattern + metallic silver `VCA` crest on upper-left band |
+| **Back (-Z)** | Prismatic Hologram Shield & QR | Center prismatic rainbow/silver `VCA` shield + upper-right white rounded ECC-H QR box (`vcaslabs.com/v/VCA-26-00202`) + lower fugitive-ink strip with 1D barcode & serial |
+
+---
+
+## 5. Bill of Materials (BOM)
 
 | Item | Part Number | Description | Material | Qty | Mass | Process | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -86,16 +98,29 @@ Download live, parameter-synced fabrication files directly from the links below:
 
 ---
 
-## 5. Embed Options (Add This Live CAD Anywhere)
+## 6. Embed Options (Add This Live CAD Anywhere)
 
-Manufacturers, partners, and documentation portals can embed the live VCA Slab CAD using any of the options below:
+Manufacturers, partners, and documentation portals can embed the live VCA Slab CAD & Full-Spec README using any of the options below:
 
 ### Option A — Markdown Live 3D Animated CAD (GitHub, Notion, Linear, Obsidian)
 ```markdown
 [![VCA Live 3D Animated Slab CAD (VCA-26-00202)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/api/cad-animated.svg?serial=VCA-26-00202)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1)
 ```
 
-### Option B — Interactive 3D CAD & Blueprint `<iframe>` (Websites, Supplier Portals, Webflow, Framer)
+### Option B — Full-Spec Interactive 3D README `<iframe>` (Complete Product, Label Prototype & BOM Spec)
+```html
+<iframe
+  src="https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=readme"
+  title="VCA Full Spec Dynamic README & 3D Slab — VCA-26-00202"
+  width="100%"
+  height="840"
+  style="border:1px solid #1E3A5F;border-radius:10px;background:#0D1117;display:block;"
+  loading="lazy"
+  allow="fullscreen"
+></iframe>
+```
+
+### Option C — Interactive 3D CAD & Blueprint `<iframe>` (Viewport Only)
 ```html
 <iframe
   src="https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1"
@@ -108,7 +133,7 @@ Manufacturers, partners, and documentation portals can embed the live VCA Slab C
 ></iframe>
 ```
 
-### Option C — Dynamic Self-Mounting Text-Box Widget (`/embed.js`)
+### Option D — Dynamic Self-Mounting Text-Box Widget (`/embed.js`)
 ```html
 <div
   data-vca-blueprint
@@ -124,7 +149,7 @@ Manufacturers, partners, and documentation portals can embed the live VCA Slab C
 <script async src="https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/embed.js"></script>
 ```
 
-### Option D — Static Vector Blueprint Fallback (`<object>`)
+### Option E — Static Vector Blueprint Fallback (`<object>`)
 ```html
 <object
   type="image/svg+xml"
@@ -136,4 +161,4 @@ Manufacturers, partners, and documentation portals can embed the live VCA Slab C
 
 ---
 
-**Questions, DFM feedback, or tooling quotes?** Contact **tosmond@vcaslabs.com** · [vcaslabs.com](https://vcaslabs.com)
+**Questions, DFM feedback, or tooling quotes?** Contact **tosmond@vcaslabs.com** · [Open Live README & Private Direct Message Overlay](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=readme) · [vcaslabs.com](https://vcaslabs.com)

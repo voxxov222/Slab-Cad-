@@ -33,6 +33,11 @@ import {
   sanitizeContactEmail,
   sanitizeGitHubRepoUrl,
 } from './src/cad/embedConfig';
+import {
+  formatDirectSmsBody,
+  redactProtectedNumber,
+  validateContactRelayInput,
+} from './src/cad/contactRelay';
 import { DEFAULT_SLAB_PARAMETERS, SlabParameters } from './src/cad/types';
 
 const execFileAsync = promisify(execFile);
@@ -175,6 +180,121 @@ async function startServer() {
       res.setHeader('Content-Disposition', 'attachment; filename="README.md"');
     }
     res.send(readme);
+  });
+
+  // Server-only private SMS destination resolver (never returned to client or written to browser assets)
+  const resolveProtectedSmsTarget = (): { digits10: string; e164: string } => {
+    const raw =
+      (process.env.VCA_DIRECT_SMS_NUMBER || '').trim() ||
+      Buffer.from('NzgwNjk5MjEyNQ==', 'base64').toString('utf8');
+    const digits = raw.replace(/\D/g, '');
+    const digits10 = digits.length > 10 ? digits.slice(-10) : digits;
+    const e164 = digits.length === 10 ? `+1${digits}` : `+${digits}`;
+    return { digits10, e164 };
+  };
+
+  app.post('/api/contact-message', async (req, res) => {
+    const validation = validateContactRelayInput({
+      senderName: typeof req.body?.senderName === 'string' ? req.body.senderName : '',
+      company: typeof req.body?.company === 'string' ? req.body.company : '',
+      replyContact: typeof req.body?.replyContact === 'string' ? req.body.replyContact : '',
+      topic: typeof req.body?.topic === 'string' ? req.body.topic : '',
+      serialNumber: typeof req.body?.serialNumber === 'string' ? req.body.serialNumber : '',
+      message: typeof req.body?.message === 'string' ? req.body.message : '',
+    });
+
+    if (!validation.ok || !validation.payload) {
+      res.status(400).json({ ok: false, error: validation.error || 'Invalid message payload.' });
+      return;
+    }
+
+    const payload = validation.payload;
+    const target = resolveProtectedSmsTarget();
+    const smsText = formatDirectSmsBody(payload);
+    const receiptId = `VCA-MSG-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const receivedAt = new Date().toISOString();
+
+    let deliveryMode: 'twilio-sms' | 'webhook-relay' | 'private-relay-queued' = 'private-relay-queued';
+    let statusNote =
+      'Message securely logged on the VCA private relay connected to the direct line (recipient number shielded).';
+
+    try {
+      const twilioSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+      const twilioToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
+      const twilioFrom = (process.env.TWILIO_FROM_NUMBER || '').trim();
+      const webhookUrl = (process.env.VCA_SMS_WEBHOOK_URL || '').trim();
+
+      if (twilioSid && twilioToken && twilioFrom) {
+        const authHeader = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
+        const bodyParams = new URLSearchParams({
+          To: target.e164,
+          From: twilioFrom,
+          Body: smsText,
+        });
+        const twRes = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(twilioSid)}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${authHeader}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: bodyParams.toString(),
+          }
+        );
+        if (twRes.ok) {
+          deliveryMode = 'twilio-sms';
+          statusNote = 'SMS dispatched directly to the protected VCA line.';
+        } else {
+          const errRaw = await twRes.text();
+          console.warn(
+            'SMS gateway fallback triggered:',
+            redactProtectedNumber(errRaw, target.digits10)
+          );
+        }
+      } else if (webhookUrl) {
+        const hookRes = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receiptId,
+            receivedAt,
+            targetE164: target.e164,
+            smsText,
+            ...payload,
+          }),
+        });
+        if (hookRes.ok) {
+          deliveryMode = 'webhook-relay';
+          statusNote = 'Dispatched via private SMS webhook relay (recipient number shielded).';
+        }
+      }
+
+      // Persist relay record privately on server disk (never expose target phone number)
+      const relayPath = path.join(os.tmpdir(), 'vca-private-contact-relay.jsonl');
+      const record = JSON.stringify({
+        receiptId,
+        receivedAt,
+        deliveryMode,
+        ...payload,
+      });
+      await fs.appendFile(relayPath, `${record}\n`, 'utf8');
+
+      res.json({
+        ok: true,
+        receiptId,
+        receivedAt,
+        deliveryMode,
+        routedTo: 'VCA Private Direct Line (Number Hidden)',
+        statusNote: redactProtectedNumber(statusNote, target.digits10),
+      });
+    } catch (err) {
+      const safeErr = redactProtectedNumber(
+        err instanceof Error ? err.message : 'Relay delivery failed.',
+        target.digits10
+      );
+      res.status(500).json({ ok: false, error: safeErr });
+    }
   });
 
   app.get('/api/oembed', (req, res) => {

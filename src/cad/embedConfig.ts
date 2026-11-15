@@ -300,9 +300,11 @@ export function buildCadDownloadUrls(
 export interface EmbedSnippets {
   directUrl: string;
   cadOnlyUrl: string;
+  readmePageUrl: string;
   svgUrl: string;
   animatedCadSvgUrl: string;
   iframeHtml: string;
+  readmeIframeHtml: string;
   scriptWidgetHtml: string;
   markdownSnippet: string;
   animatedMarkdownSnippet: string;
@@ -319,6 +321,7 @@ export function buildEmbedSnippets(
   const base = origin.replace(/\/+$/, '');
   const directUrl = buildEmbedIframeUrl(base, options, params);
   const cadOnlyUrl = buildCadOnlyUrl(base, params);
+  const readmePageUrl = buildReadmePageUrl(base, params);
   const svgUrl = buildBlueprintSvgUrl(base, options, params);
   const animatedCadSvgUrl = buildAnimatedCadSvgUrl(base, params, contactEmail);
   const height = Math.round(options.heightPx);
@@ -329,6 +332,16 @@ export function buildEmbedSnippets(
   width="100%"
   height="${height}"
   style="border:1px solid #1E3A5F;border-radius:8px;background:#041224;display:block;"
+  loading="lazy"
+  allow="fullscreen"
+></iframe>`;
+
+  const readmeIframeHtml = `<iframe
+  src="${readmePageUrl}"
+  title="VCA Full Spec Dynamic README & 3D Slab — ${params.serialNumber}"
+  width="100%"
+  height="840"
+  style="border:1px solid #1E3A5F;border-radius:10px;background:#0D1117;display:block;"
   loading="lazy"
   allow="fullscreen"
 ></iframe>`;
@@ -374,9 +387,11 @@ frame?.contentWindow?.postMessage({
   return {
     directUrl,
     cadOnlyUrl,
+    readmePageUrl,
     svgUrl,
     animatedCadSvgUrl,
     iframeHtml,
+    readmeIframeHtml,
     scriptWidgetHtml,
     markdownSnippet,
     animatedMarkdownSnippet,
@@ -486,7 +501,19 @@ Download live, parameter-synced fabrication files directly from the links below:
 
 ---
 
-## 4. Bill of Materials (BOM)
+## 4. VCA Certification Label Prototype Specification (Front & Back)
+
+| Label Surface | Security Feature | Manufacturing & Graphic Specification |
+| --- | --- | --- |
+| **Envelope & Carrier** | Dual-Sided Archival Insert | \`${params.labelWidthMm.toFixed(1)} × ${params.labelHeightMm.toFixed(1)} × 0.86 mm\` Teslin / synthetic security stock housing the sealed 13.56 MHz NFC coil & IC inside the label carrier |
+| **Front (+Z)** | Classic VCA Blue & Red Split Trim | Royal Blue (\`#0A2E73\`) left / Crimson Red (\`#B91C1C\`) right perimeter frame with metallic chrome bevel |
+| **Front (+Z)** | Fugitive-Ink Guilloche & Barcode | Pearl-white anti-tamper cyan guilloche pattern, card title & set, Code-128 1D barcode, centered chrome \`VCA\` hologram seal, right-aligned collector #, \`${params.gradeLabel}\`, and \`${params.serialNumber}\` |
+| **Back (-Z)** | Midnight-Navy UV VCA Watermark | Repeating UV \`VCA\` security pattern + metallic silver \`VCA\` crest on upper-left band |
+| **Back (-Z)** | Prismatic Hologram Shield & QR | Center prismatic rainbow/silver \`VCA\` shield + upper-right white rounded ECC-H QR box (\`vcaslabs.com/v/${params.serialNumber}\`) + lower fugitive-ink strip with 1D barcode & serial |
+
+---
+
+## 5. Bill of Materials (BOM)
 
 | Item | Part Number | Description | Material | Qty | Mass | Process | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -494,32 +521,37 @@ ${bomTableRows}
 
 ---
 
-## 5. Embed Options (Add This Live CAD Anywhere)
+## 6. Embed Options (Add This Live CAD Anywhere)
 
-Manufacturers, partners, and documentation portals can embed the live VCA Slab CAD using any of the options below:
+Manufacturers, partners, and documentation portals can embed the live VCA Slab CAD & Full-Spec README using any of the options below:
 
 ### Option A — Markdown Live 3D Animated CAD (GitHub, Notion, Linear, Obsidian)
 \`\`\`markdown
 ${snippets.animatedMarkdownSnippet}
 \`\`\`
 
-### Option B — Interactive 3D CAD & Blueprint \`<iframe>\` (Websites, Supplier Portals, Webflow, Framer)
+### Option B — Full-Spec Interactive 3D README \`<iframe>\` (Complete Product, Label Prototype & BOM Spec)
+\`\`\`html
+${snippets.readmeIframeHtml}
+\`\`\`
+
+### Option C — Interactive 3D CAD & Blueprint \`<iframe>\` (Viewport Only)
 \`\`\`html
 ${snippets.iframeHtml}
 \`\`\`
 
-### Option C — Dynamic Self-Mounting Text-Box Widget (\`/embed.js\`)
+### Option D — Dynamic Self-Mounting Text-Box Widget (\`/embed.js\`)
 \`\`\`html
 ${snippets.scriptWidgetHtml}
 \`\`\`
 
-### Option D — Static Vector Blueprint Fallback (\`<object>\`)
+### Option E — Static Vector Blueprint Fallback (\`<object>\`)
 \`\`\`html
 ${snippets.objectSvgHtml}
 \`\`\`
 
 ---
 
-**Questions, DFM feedback, or tooling quotes?** Contact **${cleanEmail}** · [vcaslabs.com](https://vcaslabs.com)
+**Questions, DFM feedback, or tooling quotes?** Contact **${cleanEmail}** · [Open Live README & Private Direct Message Overlay](${urls.readmePageUrl}) · [vcaslabs.com](https://vcaslabs.com)
 `;
 }

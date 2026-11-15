@@ -81,6 +81,7 @@ test('buildEmbedSnippets and buildCadDownloadUrls generate complete embed & manu
   assert.match(snippets.svgUrl, /\/api\/blueprint\.svg\?/);
   assert.match(snippets.animatedCadSvgUrl, /\/api\/cad-animated\.svg\?/);
   assert.match(snippets.iframeHtml, /<iframe[\s\S]*embed=blueprint/);
+  assert.match(snippets.readmeIframeHtml, /<iframe[\s\S]*mode=readme/);
   assert.match(snippets.scriptWidgetHtml, /data-vca-blueprint[\s\S]*\/embed\.js/);
   assert.match(snippets.markdownSnippet, /^\[!\[VCA Slab CAD Blueprint/);
   assert.match(snippets.animatedMarkdownSnippet, /^\[!\[VCA Live 3D Animated Slab CAD/);
@@ -114,6 +115,8 @@ test('buildGitHubCadReadme outputs dynamic manufacturer README with live 3D CAD,
   assert.match(readme, /tosmond@vcaslabs\.com/);
   assert.match(readme, /mailto:tosmond@vcaslabs\.com/);
   assert.match(readme, /mode=readme/);
+  assert.match(readme, /VCA Certification Label Prototype Specification/);
+  assert.match(readme, /Classic VCA Blue & Red Split Trim/);
   assert.match(readme, /\/api\/cad-animated\.svg/);
   assert.match(readme, /\/api\/cad\/housing\.stl/);
   assert.match(readme, /\/api\/cad\/profile\.dxf/);

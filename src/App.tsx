@@ -16,6 +16,7 @@ import { DigitalPassportView } from './components/DigitalPassportView';
 import { EmbedBlueprintView } from './components/EmbedBlueprintView';
 import { EmbedShareModal } from './components/EmbedShareModal';
 import { ManufacturingView } from './components/ManufacturingView';
+import { MessageMeOverlay } from './components/MessageMeOverlay';
 import { NfcSecurityView } from './components/NfcSecurityView';
 import { ReadmePageView } from './components/ReadmePageView';
 import { AppSection, TopBar } from './components/TopBar';
@@ -123,6 +124,7 @@ export default function App() {
             window.location.href = `${window.location.origin}/?mode=cad-only&serial=${encodeURIComponent(params.serialNumber)}`;
           }}
         />
+        <MessageMeOverlay serialNumber={params.serialNumber} contactEmail={contactEmail} />
       </div>
     );
   }
@@ -224,6 +226,8 @@ export default function App() {
         contactEmail={contactEmail}
         onChangeContactEmail={handleUpdateContactEmail}
       />
+
+      <MessageMeOverlay serialNumber={params.serialNumber} contactEmail={contactEmail} />
     </div>
   );
 }
