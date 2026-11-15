@@ -1,7 +1,7 @@
 import { EngineeringMetrics, POLYMER_SPECS, generateBom } from './engineeringMath';
 import { DEFAULT_SLAB_PARAMETERS, SlabParameters, VIEW_PRESETS, ViewPresetId } from './types';
 
-export type AppRouteMode = 'full' | 'cad-only' | 'embed-blueprint';
+export type AppRouteMode = 'full' | 'cad-only' | 'embed-blueprint' | 'readme';
 export type EmbedBlueprintStyle = 'exploded-blueprint' | 'blueprint' | 'studio' | 'xray-nfc';
 
 export const DEFAULT_GITHUB_CAD_URL = 'https://github.com/vcaslabs/vca-slab-cad';
@@ -106,18 +106,25 @@ export function parseParamOverridesFromSearch(search: string): Partial<SlabParam
   return out;
 }
 
-export function parseAppModeAndEmbedFromSearch(search: string): ParsedRouteState {
+export function parseAppModeAndEmbedFromSearch(
+  search: string,
+  pathname: string = ''
+): ParsedRouteState {
   const q = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   const embedParam = q.get('embed');
   const modeParam = q.get('mode');
+  const normalizedPath = pathname.replace(/\/+$/, '').toLowerCase();
 
-  const isEmbed = embedParam === 'blueprint' || embedParam === '1' || embedParam === 'cad';
-  const cadOnly = isEmbed || modeParam === 'cad-only' || modeParam === 'cad';
-  const mode: AppRouteMode = isEmbed
-    ? 'embed-blueprint'
-    : cadOnly
-      ? 'cad-only'
-      : 'full';
+  const isReadme = modeParam === 'readme' || normalizedPath === '/readme';
+  const isEmbed = !isReadme && (embedParam === 'blueprint' || embedParam === '1' || embedParam === 'cad');
+  const cadOnly = isReadme || isEmbed || modeParam === 'cad-only' || modeParam === 'cad';
+  const mode: AppRouteMode = isReadme
+    ? 'readme'
+    : isEmbed
+      ? 'embed-blueprint'
+      : cadOnly
+        ? 'cad-only'
+        : 'full';
 
   const rawStyle = q.get('style') as EmbedBlueprintStyle | null;
   const style: EmbedBlueprintStyle =
@@ -189,6 +196,13 @@ export function buildCadOnlyUrl(origin: string, params: SlabParameters): string 
   return `${base}/?${q.toString()}`;
 }
 
+export function buildReadmePageUrl(origin: string, params: SlabParameters): string {
+  const base = origin.replace(/\/+$/, '');
+  const q = buildParamQuery(params);
+  q.set('mode', 'readme');
+  return `${base}/?${q.toString()}`;
+}
+
 export function buildEmbedIframeUrl(
   origin: string,
   options: EmbedOptions,
@@ -243,6 +257,7 @@ export interface CadDownloadUrls {
   blueprintSvgUrl: string;
   animatedCadSvgUrl: string;
   dynamicReadmeUrl: string;
+  readmePageUrl: string;
   interactive3dUrl: string;
   cadOnlyUrl: string;
 }
@@ -276,6 +291,7 @@ export function buildCadDownloadUrls(
     blueprintSvgUrl: buildBlueprintSvgUrl(base, DEFAULT_EMBED_OPTIONS, params),
     animatedCadSvgUrl: buildAnimatedCadSvgUrl(base, params, cleanEmail),
     dynamicReadmeUrl: `${base}/api/cad/README.md?${readmeQs.toString()}`,
+    readmePageUrl: buildReadmePageUrl(base, params),
     interactive3dUrl: buildEmbedIframeUrl(base, DEFAULT_EMBED_OPTIONS, params),
     cadOnlyUrl: buildCadOnlyUrl(base, params),
   };
@@ -401,13 +417,13 @@ export function buildGitHubCadReadme(
 **Reference Prototype Identity:** \`${params.serialNumber}\`  
 **Manufacturing & Engineering Inquiries:** [${cleanEmail}](mailto:${cleanEmail})  
 **Brand Portal:** [https://vcaslabs.com](https://vcaslabs.com) · **CAD Repository:** ${cleanRepo}  
-**Interactive CAD Workstations (No Video Tools):** [Launch Live 3D CAD Viewport](${urls.interactive3dUrl}) · [Launch Full CAD Studio (\`?mode=cad-only\`)](${urls.cadOnlyUrl})
+**Interactive CAD Workstations (No Video Tools):** [Open Live README Page (3D Embedded)](${urls.readmePageUrl}) · [Launch Live 3D CAD Viewport](${urls.interactive3dUrl}) · [Launch Full CAD Studio (\`?mode=cad-only\`)](${urls.cadOnlyUrl})
 
 ---
 
 ## Live 3D Animated Slab CAD Preview (Exploded Stackup & 13.56 MHz NFC Assembly)
 
-> Click the live animated 3D CAD preview below to open the interactive Three.js 3D viewport where manufacturers and engineers can orbit, inspect cross-sections, toggle Z-axis layer explosion, and click components \`#01\`–\`#12\`.
+> Click the live animated 3D transparent VCA slab preview below to open the interactive Three.js 3D viewport where manufacturers and engineers can orbit, inspect Front & Rear VCA labels, toggle Z-axis layer explosion, and click components \`#01\`–\`#12\`.
 
 [![VCA Live 3D Animated Slab CAD (${params.serialNumber})](${urls.animatedCadSvgUrl})](${urls.interactive3dUrl})
 

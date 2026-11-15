@@ -573,6 +573,15 @@ export const EmbedShareModal: React.FC<EmbedShareModalProps> = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <a
+                      href={downloadUrls.readmePageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-[#1E3A5F] bg-[#0B1628] hover:border-[#38BDF8] text-[#7DD3FC]"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Open Live README Page</span>
+                    </a>
+                    <a
                       href={downloadUrls.interactive3dUrl}
                       target="_blank"
                       rel="noopener noreferrer"

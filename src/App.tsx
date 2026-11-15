@@ -17,6 +17,7 @@ import { EmbedBlueprintView } from './components/EmbedBlueprintView';
 import { EmbedShareModal } from './components/EmbedShareModal';
 import { ManufacturingView } from './components/ManufacturingView';
 import { NfcSecurityView } from './components/NfcSecurityView';
+import { ReadmePageView } from './components/ReadmePageView';
 import { AppSection, TopBar } from './components/TopBar';
 import { VideoFormatCategory } from './cad/videoCreator';
 
@@ -24,7 +25,7 @@ function readInitialRouteState() {
   if (typeof window === 'undefined') {
     return parseAppModeAndEmbedFromSearch('');
   }
-  return parseAppModeAndEmbedFromSearch(window.location.search);
+  return parseAppModeAndEmbedFromSearch(window.location.search, window.location.pathname);
 }
 
 function getInitialSection(cadOnly: boolean): AppSection {
@@ -107,6 +108,25 @@ export default function App() {
     );
   }
 
+  // Standalone Manufacturer README Page (?mode=readme or /readme) with live 3D slab embedded directly
+  if (routeState.mode === 'readme') {
+    return (
+      <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#0D1117] text-[#E6EDF3]">
+        <ReadmePageView
+          params={params}
+          metrics={metrics}
+          bom={bom}
+          githubUrl={githubUrl}
+          contactEmail={contactEmail}
+          standalone
+          onOpenCadStudio={() => {
+            window.location.href = `${window.location.origin}/?mode=cad-only&serial=${encodeURIComponent(params.serialNumber)}`;
+          }}
+        />
+      </div>
+    );
+  }
+
   const mobileNavItems: { id: AppSection; label: string }[] = (
     [
       { id: 'studio', label: 'CAD' },
@@ -114,6 +134,7 @@ export default function App() {
       { id: 'nfc', label: 'NFC' },
       { id: 'manufacturing', label: 'Mfg' },
       { id: 'passport', label: 'Passport' },
+      { id: 'readme', label: 'README' },
     ] as { id: AppSection; label: string }[]
   ).filter((item) => !(routeState.cadOnly && item.id === 'video'));
 
@@ -130,7 +151,7 @@ export default function App() {
 
       {/* Mobile secondary nav strip (only visible below md breakpoint) */}
       <div
-        className={`grid ${routeState.cadOnly ? 'grid-cols-4' : 'grid-cols-5'} md:hidden border-b border-[#1B2332] bg-[#0D121B] px-2 py-1.5 gap-1 shrink-0`}
+        className={`grid ${routeState.cadOnly ? 'grid-cols-5' : 'grid-cols-6'} md:hidden border-b border-[#1B2332] bg-[#0D121B] px-2 py-1.5 gap-1 shrink-0`}
       >
         {mobileNavItems.map((item) => (
           <button
@@ -181,6 +202,16 @@ export default function App() {
           />
         )}
         {activeSection === 'passport' && <DigitalPassportView params={params} />}
+        {activeSection === 'readme' && (
+          <ReadmePageView
+            params={params}
+            metrics={metrics}
+            bom={bom}
+            githubUrl={githubUrl}
+            contactEmail={contactEmail}
+            onOpenEmbedModal={() => setEmbedModalOpen(true)}
+          />
+        )}
       </main>
 
       <EmbedShareModal

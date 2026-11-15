@@ -47,6 +47,14 @@ test('parseAppModeAndEmbedFromSearch parses cad-only mode, animate, and embed bl
   assert.equal(invalid.embed.style, 'exploded-blueprint');
   assert.equal(invalid.embed.view, 'exploded');
   assert.equal(invalid.paramOverrides.overallWidthMm, 96);
+
+  const readmeMode = parseAppModeAndEmbedFromSearch('?mode=readme&serial=VCA-26-00202');
+  assert.equal(readmeMode.mode, 'readme');
+  assert.equal(readmeMode.cadOnly, true);
+
+  const readmePath = parseAppModeAndEmbedFromSearch('', '/readme');
+  assert.equal(readmePath.mode, 'readme');
+  assert.equal(readmePath.cadOnly, true);
 });
 
 test('sanitizeGitHubRepoUrl and sanitizeContactEmail enforce valid safe formats', () => {
@@ -86,6 +94,7 @@ test('buildEmbedSnippets and buildCadDownloadUrls generate complete embed & manu
   assert.match(dl.bomCsvUrl, /\/api\/cad\/bom\.csv\?/);
   assert.match(dl.rfqUrl, /\/api\/cad\/manufacturer-rfq\.md\?/);
   assert.match(dl.dynamicReadmeUrl, /\/api\/cad\/README\.md\?/);
+  assert.match(dl.readmePageUrl, /mode=readme/);
   assert.match(
     buildAnimatedCadSvgUrl('https://vcaslabs.example', DEFAULT_SLAB_PARAMETERS),
     /\/api\/cad-animated\.svg\?/
@@ -104,6 +113,7 @@ test('buildGitHubCadReadme outputs dynamic manufacturer README with live 3D CAD,
   assert.match(readme, /VCA-26-00202/);
   assert.match(readme, /tosmond@vcaslabs\.com/);
   assert.match(readme, /mailto:tosmond@vcaslabs\.com/);
+  assert.match(readme, /mode=readme/);
   assert.match(readme, /\/api\/cad-animated\.svg/);
   assert.match(readme, /\/api\/cad\/housing\.stl/);
   assert.match(readme, /\/api\/cad\/profile\.dxf/);
@@ -128,7 +138,10 @@ test('generateAnimatedCadSvg produces valid animated 3D isometric CAD SVG with t
   assert.ok(svg.includes('vcaRfPulse'));
   assert.ok(svg.includes('vcaScanSweep'));
   assert.ok(svg.includes('#01 FRONT OPTICAL HOUSING'));
+  assert.ok(svg.includes('#02 CLEAR OPTICAL PERIMETER FRAME'));
   assert.ok(svg.includes('#12 REAR OPTICAL SHELL'));
+  assert.ok(svg.includes('#0A2E73'));
+  assert.ok(svg.includes('#B91C1C'));
   assert.ok(svg.includes('tosmond@vcaslabs.com'));
   assert.ok(svg.includes('13.56 MHz'));
 });

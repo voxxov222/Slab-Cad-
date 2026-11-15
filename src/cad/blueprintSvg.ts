@@ -456,18 +456,26 @@ export function generateAnimatedCadSvg(
 
     <!-- Layer 3: #08 / #09 Archival Inner Sleeve + Encapsulated Trading Card -->
     <g class="vca-l3">
-      <rect x="${(-cardW / 2 - 4).toFixed(1)}" y="${(14 * scale - cardH / 2 - 4).toFixed(1)}" width="${(cardW + 8).toFixed(1)}" height="${(cardH + 8).toFixed(1)}" rx="4" fill="rgba(226,232,240,0.08)" stroke="#94A3B8" stroke-width="1" stroke-dasharray="4 2" />
-      <rect x="${(-cardW / 2).toFixed(1)}" y="${(14 * scale - cardH / 2).toFixed(1)}" width="${cardW.toFixed(1)}" height="${cardH.toFixed(1)}" rx="3" fill="rgba(30,58,95,0.62)" stroke="#E2E8F0" stroke-width="1.4" />
-      <rect x="${(-cardW / 2 + 12).toFixed(1)}" y="${(14 * scale - cardH / 2 + 16).toFixed(1)}" width="${(cardW - 24).toFixed(1)}" height="${(cardH * 0.48).toFixed(1)}" rx="2" fill="rgba(56,189,248,0.16)" stroke="#38BDF8" stroke-width="0.9" />
+      <rect x="${(-cardW / 2 - 4).toFixed(1)}" y="${(14 * scale - cardH / 2 - 4).toFixed(1)}" width="${(cardW + 8).toFixed(1)}" height="${(cardH + 8).toFixed(1)}" rx="4" fill="rgba(255,255,255,0.04)" stroke="#BAE6FD" stroke-width="0.9" stroke-dasharray="4 2" />
+      <rect x="${(-cardW / 2).toFixed(1)}" y="${(14 * scale - cardH / 2).toFixed(1)}" width="${cardW.toFixed(1)}" height="${cardH.toFixed(1)}" rx="3" fill="#090E1A" stroke="#E2E8F0" stroke-width="2.2" />
+      <rect x="${(-cardW / 2 + 12).toFixed(1)}" y="${(14 * scale - cardH / 2 + 18).toFixed(1)}" width="${(cardW - 24).toFixed(1)}" height="${(cardH * 0.48).toFixed(1)}" rx="2" fill="rgba(14,165,233,0.22)" stroke="#38BDF8" stroke-width="1.2" />
       <text x="0" y="${(14 * scale + 34).toFixed(1)}" text-anchor="middle" fill="#F8FAFC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" font-weight="700">#09 CERTIFIED CARD</text>
-      <text x="0" y="${(14 * scale + 49).toFixed(1)}" text-anchor="middle" fill="#CBD5E1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8">${params.cardWidthMm} × ${params.cardHeightMm} mm</text>
+      <text x="0" y="${(14 * scale + 49).toFixed(1)}" text-anchor="middle" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8">${params.cardWidthMm} × ${params.cardHeightMm} mm</text>
     </g>
 
-    <!-- Layer 4: #05 / #06 / #07 Upper Certification Label + Recessed NFC Bay + 13.56 MHz Spiral Coil -->
+    <!-- Layer 4: #04 / #05 / #06 / #07 VCA Blue/Red Certification Label + NFC Coil -->
     <g class="vca-l4">
-      <rect x="${(-labelW / 2).toFixed(1)}" y="${(labelCenterY - labelH / 2).toFixed(1)}" width="${labelW.toFixed(1)}" height="${labelH.toFixed(1)}" rx="5" fill="rgba(15,23,42,0.88)" stroke="#7DD3FC" stroke-width="1.5" />
-      <text x="${(-labelW / 2 + 10).toFixed(1)}" y="${(labelCenterY - 7).toFixed(1)}" fill="#F8FAFC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" font-weight="700">${serialSafe}</text>
-      <text x="${(-labelW / 2 + 10).toFixed(1)}" y="${(labelCenterY + 8).toFixed(1)}" fill="#38BDF8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8">${escapeXml(params.gradeLabel)}</text>
+      <!-- Classic VCA Blue (left) & Crimson Red (right) split frame -->
+      <rect x="${(-labelW / 2).toFixed(1)}" y="${(labelCenterY - labelH / 2).toFixed(1)}" width="${(labelW / 2).toFixed(1)}" height="${labelH.toFixed(1)}" rx="4" fill="#0A2E73" />
+      <rect x="0" y="${(labelCenterY - labelH / 2).toFixed(1)}" width="${(labelW / 2).toFixed(1)}" height="${labelH.toFixed(1)}" rx="4" fill="#B91C1C" />
+      <rect x="${(-labelW / 2).toFixed(1)}" y="${(labelCenterY - labelH / 2).toFixed(1)}" width="${labelW.toFixed(1)}" height="${labelH.toFixed(1)}" rx="4" fill="none" stroke="#CBD5E1" stroke-width="1.4" />
+      <!-- Pearl White Fugitive-Ink Insert -->
+      <rect x="${(-labelW / 2 + 4.5).toFixed(1)}" y="${(labelCenterY - labelH / 2 + 4.5).toFixed(1)}" width="${(labelW - 9).toFixed(1)}" height="${(labelH - 9).toFixed(1)}" rx="2" fill="#F8FAFC" />
+      <text x="${(-labelW / 2 + 10).toFixed(1)}" y="${(labelCenterY - 6).toFixed(1)}" fill="#090D16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" font-weight="700">${serialSafe}</text>
+      <text x="${(-labelW / 2 + 10).toFixed(1)}" y="${(labelCenterY + 6).toFixed(1)}" fill="#1E293B" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="7.5" font-weight="700">${escapeXml(params.gradeLabel)}</text>
+      <!-- Center Chrome VCA Seal -->
+      <rect x="-15" y="${(labelCenterY + labelH / 2 - 13).toFixed(1)}" width="30" height="12" rx="2" fill="#CBD5E1" stroke="#0F3D99" stroke-width="1" />
+      <text x="0" y="${(labelCenterY + labelH / 2 - 4).toFixed(1)}" text-anchor="middle" fill="#0F3D99" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="7.5" font-weight="700">VCA</text>
       <rect x="${(nfcCenterX - nfcW / 2).toFixed(1)}" y="${(labelCenterY - nfcH / 2).toFixed(1)}" width="${nfcW.toFixed(1)}" height="${nfcH.toFixed(1)}" rx="3" fill="rgba(245,158,11,0.12)" stroke="#F59E0B" stroke-width="1.3" />
       ${coilShapes.join('')}
       <rect x="${(nfcCenterX - 4.5).toFixed(1)}" y="${(labelCenterY - 4.5).toFixed(1)}" width="9" height="9" rx="1.5" fill="#F59E0B" />
@@ -476,16 +484,16 @@ export function generateAnimatedCadSvg(
       <circle cx="${nfcCenterX.toFixed(1)}" cy="${labelCenterY.toFixed(1)}" r="34" fill="none" stroke="#F59E0B" stroke-width="1" stroke-dasharray="3 4" class="vca-rf-wave" />
     </g>
 
-    <!-- Layer 5: #02 Graphite Structural Perimeter Frame Collar -->
+    <!-- Layer 5: #02 Water-Clear Polycarbonate Perimeter Frame -->
     <g class="vca-l5">
-      <polygon points="${slabPts}" fill="none" stroke="#475569" stroke-width="7" opacity="0.72" />
-      <polygon points="${slabPts}" fill="none" stroke="#94A3B8" stroke-width="1.1" />
-      <text x="0" y="${(ph / 2 + 16).toFixed(1)}" text-anchor="middle" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5">#02 2-SHOT GRAPHITE COLLAR</text>
+      <polygon points="${slabPts}" fill="rgba(224,242,254,0.03)" stroke="#BAE6FD" stroke-width="3.2" opacity="0.55" />
+      <polygon points="${innerRimPts}" fill="none" stroke="#E0F2FE" stroke-width="1.1" opacity="0.85" />
+      <text x="0" y="${(ph / 2 + 16).toFixed(1)}" text-anchor="middle" fill="#BAE6FD" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5">#02 CLEAR OPTICAL PERIMETER FRAME</text>
     </g>
 
     <!-- Layer 6: #01 Front Crystal-Clear Optical Shell + Optical Scan Sweep -->
     <g class="vca-l6">
-      <polygon points="${slabPts}" fill="url(#glassGrad)" stroke="#38BDF8" stroke-width="2.1" />
+      <polygon points="${slabPts}" fill="url(#glassGrad)" stroke="#E0F2FE" stroke-width="2" />
       <rect x="${(-pw / 2 + 8).toFixed(1)}" y="-14" width="${(pw - 16).toFixed(1)}" height="28" fill="url(#scanBeamGrad)" class="vca-scan" />
       <text x="0" y="${(ph / 2 + 30).toFixed(1)}" text-anchor="middle" fill="#38BDF8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" font-weight="700">#01 FRONT OPTICAL HOUSING (${params.wallThicknessMm.toFixed(2)} mm)</text>
     </g>

@@ -3,15 +3,15 @@
 **Reference Prototype Identity:** `VCA-26-00202`  
 **Manufacturing & Engineering Inquiries:** [tosmond@vcaslabs.com](mailto:tosmond@vcaslabs.com)  
 **Brand Portal:** [https://vcaslabs.com](https://vcaslabs.com) · **CAD Repository:** https://github.com/vcaslabs/vca-slab-cad  
-**Interactive CAD Workstations (No Video Tools):** [Launch Live 3D CAD Viewport](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1) · [Launch Full CAD Studio (`?mode=cad-only`)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=cad-only)
+**Interactive CAD Workstations (No Video Tools):** [Open Live README Page (3D Embedded)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=readme) · [Launch Live 3D CAD Viewport](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1) · [Launch Full CAD Studio (`?mode=cad-only`)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=cad-only)
 
 ---
 
-## Live 3D Animated Slab CAD Preview (Exploded Stackup & 13.56 MHz NFC Assembly)
+## Live 3D Animated Slab CAD Preview (Transparent Housing, Front/Back Labels & 13.56 MHz NFC)
 
-> Click the live animated 3D CAD preview below to open the interactive Three.js 3D viewport where manufacturers and engineers can orbit, inspect cross-sections, toggle Z-axis layer explosion, and click components `#01`–`#12`.
+> Embedded directly below as a self-contained animated 3D CAD vector (`./public/vca-slab-animated-3d.svg`) showing the water-clear optical polycarbonate shell, Classic VCA Blue & Red certification label, NFC inlay, and 12-layer Z-axis explosion. Click the preview to launch the interactive Three.js 3D viewport or open the [Live Interactive README Page](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&mode=readme).
 
-[![VCA Live 3D Animated Slab CAD (VCA-26-00202)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/api/cad-animated.svg?serial=VCA-26-00202)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1)
+[![VCA Live 3D Animated Slab CAD (VCA-26-00202)](./public/vca-slab-animated-3d.svg)](https://ais-pre-moxeqy5i7vkzhyeitul3k6-7364581088.us-west2.run.app/?serial=VCA-26-00202&embed=blueprint&style=exploded-blueprint&view=exploded&explode=1&callouts=1&hud=1&animate=1)
 
 ---
 

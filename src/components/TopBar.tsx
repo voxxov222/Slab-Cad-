@@ -2,7 +2,7 @@ import React from 'react';
 import { Code2, ExternalLink, GitBranch } from 'lucide-react';
 import { sanitizeGitHubRepoUrl } from '../cad/embedConfig';
 
-export type AppSection = 'studio' | 'video' | 'nfc' | 'manufacturing' | 'passport';
+export type AppSection = 'studio' | 'video' | 'nfc' | 'manufacturing' | 'passport' | 'readme';
 
 interface TopBarProps {
   activeSection: AppSection;
@@ -19,6 +19,7 @@ const NAV_ITEMS: { id: AppSection; label: string }[] = [
   { id: 'nfc', label: 'NFC & Security' },
   { id: 'manufacturing', label: 'Manufacturing' },
   { id: 'passport', label: 'Digital Passport' },
+  { id: 'readme', label: 'README' },
 ];
 
 export const TopBar: React.FC<TopBarProps> = ({
