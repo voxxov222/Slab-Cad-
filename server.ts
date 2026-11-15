@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
-import { calculateEngineeringMetrics } from './src/cad/engineeringMath';
+import { calculateEngineeringMetrics, generateBom } from './src/cad/engineeringMath';
 import {
   RawCreatedVideoInput,
   VideoFormatCategory,
@@ -17,8 +17,22 @@ import {
   normalizeCreatedVideoPlan,
   validateCreateVideoPrompt,
 } from './src/cad/videoCreator';
-import { generateBlueprintSvg } from './src/cad/blueprintSvg';
-import { parseAppModeAndEmbedFromSearch } from './src/cad/embedConfig';
+import { generateAnimatedCadSvg, generateBlueprintSvg } from './src/cad/blueprintSvg';
+import {
+  generateBomCsv,
+  generateManufacturerRfqSpec,
+  generateOpenScadSource,
+  generateSlabDxf,
+  generateSlabShellAsciiStl,
+} from './src/cad/cadExporters';
+import {
+  DEFAULT_CONTACT_EMAIL,
+  DEFAULT_GITHUB_CAD_URL,
+  buildGitHubCadReadme,
+  parseAppModeAndEmbedFromSearch,
+  sanitizeContactEmail,
+  sanitizeGitHubRepoUrl,
+} from './src/cad/embedConfig';
 import { DEFAULT_SLAB_PARAMETERS, SlabParameters } from './src/cad/types';
 
 const execFileAsync = promisify(execFile);
@@ -66,7 +80,7 @@ async function startServer() {
     });
   });
 
-  app.get('/api/blueprint.svg', (req, res) => {
+  const extractCadContext = (req: express.Request) => {
     const queryIdx = req.originalUrl.indexOf('?');
     const search = queryIdx >= 0 ? req.originalUrl.slice(queryIdx) : '';
     const parsed = parseAppModeAndEmbedFromSearch(search);
@@ -75,6 +89,24 @@ async function startServer() {
       ...parsed.paramOverrides,
     };
     const metrics = calculateEngineeringMetrics(params);
+    const host = req.get('host') || `localhost:${PORT}`;
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const origin = `${proto}://${host}`;
+    const rawEmail = typeof req.query.email === 'string' ? req.query.email : DEFAULT_CONTACT_EMAIL;
+    const rawRepo = typeof req.query.repo === 'string' ? req.query.repo : DEFAULT_GITHUB_CAD_URL;
+    return {
+      parsed,
+      params,
+      metrics,
+      origin,
+      contactEmail: sanitizeContactEmail(rawEmail),
+      githubRepoUrl: sanitizeGitHubRepoUrl(rawRepo),
+      safeSerial: params.serialNumber.replace(/[^a-zA-Z0-9_-]/g, '') || 'VCA-26-00202',
+    };
+  };
+
+  app.get('/api/blueprint.svg', (req, res) => {
+    const { parsed, params, metrics } = extractCadContext(req);
     const svg = generateBlueprintSvg(params, metrics, {
       style: parsed.embed.style,
       view: parsed.embed.view,
@@ -84,6 +116,65 @@ async function startServer() {
     res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.send(svg);
+  });
+
+  app.get('/api/cad-animated.svg', (req, res) => {
+    const { params, metrics, contactEmail } = extractCadContext(req);
+    const svg = generateAnimatedCadSvg(params, metrics, contactEmail);
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.send(svg);
+  });
+
+  app.get('/api/cad/housing.stl', (req, res) => {
+    const { params, safeSerial } = extractCadContext(req);
+    const stl = generateSlabShellAsciiStl(params);
+    res.setHeader('Content-Type', 'model/stl; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeSerial}-housing.stl"`);
+    res.send(stl);
+  });
+
+  app.get('/api/cad/profile.dxf', (req, res) => {
+    const { params, metrics, safeSerial } = extractCadContext(req);
+    const dxf = generateSlabDxf(params, metrics);
+    res.setHeader('Content-Type', 'application/dxf; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeSerial}-profile.dxf"`);
+    res.send(dxf);
+  });
+
+  app.get('/api/cad/parametric.scad', (req, res) => {
+    const { params, metrics, safeSerial } = extractCadContext(req);
+    const scad = generateOpenScadSource(params, metrics);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeSerial}-parametric.scad"`);
+    res.send(scad);
+  });
+
+  app.get('/api/cad/bom.csv', (req, res) => {
+    const { params, metrics, safeSerial } = extractCadContext(req);
+    const csv = generateBomCsv(generateBom(params, metrics));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeSerial}-bom.csv"`);
+    res.send(csv);
+  });
+
+  app.get('/api/cad/manufacturer-rfq.md', (req, res) => {
+    const { params, metrics, contactEmail, safeSerial } = extractCadContext(req);
+    const bom = generateBom(params, metrics);
+    const rfq = generateManufacturerRfqSpec(params, metrics, bom, contactEmail);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeSerial}-manufacturer-rfq.md"`);
+    res.send(rfq);
+  });
+
+  app.get('/api/cad/README.md', (req, res) => {
+    const { params, metrics, origin, githubRepoUrl, contactEmail } = extractCadContext(req);
+    const readme = buildGitHubCadReadme(params, metrics, origin, githubRepoUrl, contactEmail);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    if (req.query.download === '1' || req.query.download === 'true') {
+      res.setHeader('Content-Disposition', 'attachment; filename="README.md"');
+    }
+    res.send(readme);
   });
 
   app.get('/api/oembed', (req, res) => {
@@ -125,6 +216,7 @@ async function startServer() {
       q.set('explode', ds.explode !== undefined ? ds.explode : '1');
       q.set('callouts', ds.callouts !== undefined ? ds.callouts : '1');
       q.set('hud', ds.hud !== undefined ? ds.hud : '1');
+      q.set('animate', ds.animate !== undefined ? ds.animate : '1');
       if (ds.serial) q.set('serial', ds.serial);
       if (ds.w) q.set('w', ds.w);
       if (ds.h) q.set('h', ds.h);

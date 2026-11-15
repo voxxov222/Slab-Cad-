@@ -42,4 +42,5 @@ test('exports parametric OpenSCAD script and Manufacturer RFQ spec without fabri
   assert.ok(csv.includes('VCA-HSG-FRT-01'));
   assert.ok(rfq.includes('Proposed Engineering Targets'));
   assert.ok(rfq.includes('require formal DFM confirmation'));
+  assert.ok(rfq.includes('tosmond@vcaslabs.com'));
 });

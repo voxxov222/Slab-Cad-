@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EngineeringMetrics, POLYMER_SPECS } from './engineeringMath';
 import {
   createBrushedRoughnessTexture,
+  createCertLabelBackTexture,
   createCertLabelTexture,
   createHoloQrSealTexture,
   createTradingCardTextures,
@@ -145,24 +146,23 @@ export function buildVcaSlabAssembly(
 
   const brushedRoughTex = trackTex(createBrushedRoughnessTexture(maxAnisotropy));
 
+  // Water-clear SPI A-1 optical polycarbonate: crisp transparency with pure specular bevel catchlights
   const frontOpticalMat = trackMat(
     new THREE.MeshPhysicalMaterial({
-      color: opticalColor,
+      color: 0xffffff,
       metalness: 0.0,
-      roughness: 0.06,
+      roughness: 0.0,
       ior: poly.refractiveIndex,
-      transmission: isSoftwareGl ? 0 : 0.9,
-      thickness: params.wallThicknessMm * 1.4,
-      attenuationColor: new THREE.Color(0xe6f4ff),
-      attenuationDistance: 24,
+      transmission: 0,
       transparent: true,
-      opacity: isSoftwareGl ? 0.24 : 0.96,
+      opacity: 0.065,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.03,
+      clearcoatRoughness: 0.0,
+      reflectivity: 0.9,
       specularIntensity: 1.0,
-      specularColor: new THREE.Color(0xe0f2fe),
+      specularColor: new THREE.Color(0xffffff),
       depthWrite: false,
-      envMapIntensity: 2.2,
+      envMapIntensity: 0.85,
     })
   );
 
@@ -170,13 +170,14 @@ export function buildVcaSlabAssembly(
 
   const cradleOpticalMat = trackMat(
     new THREE.MeshPhysicalMaterial({
-      color: 0xbae6fd,
-      metalness: 0.04,
-      roughness: 0.18,
+      color: 0xe0f2fe,
+      metalness: 0.0,
+      roughness: 0.02,
       transparent: true,
-      opacity: 0.54,
-      clearcoat: 0.75,
-      envMapIntensity: 1.5,
+      opacity: 0.14,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.01,
+      envMapIntensity: 0.9,
       depthWrite: false,
     })
   );
@@ -199,17 +200,17 @@ export function buildVcaSlabAssembly(
   );
   const frontShellMesh = new THREE.Mesh(frontShellGeo, frontOpticalMat);
   frontShellMesh.position.z = halfT - params.wallThicknessMm;
-  frontShellMesh.renderOrder = 3;
+  frontShellMesh.renderOrder = 4;
   frontShellMesh.userData.componentId = 'front_housing';
   components.front_housing.add(frontShellMesh);
 
   // Crisp optical polycarbonate chamfer catchlight
-  const frontEdgeGeo = trackGeo(new THREE.EdgesGeometry(frontShellGeo, 28));
+  const frontEdgeGeo = trackGeo(new THREE.EdgesGeometry(frontShellGeo, 24));
   const opticalEdgeMat = trackMat(
     new THREE.LineBasicMaterial({
-      color: 0xbae6fd,
+      color: 0xe2f1ff,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.44,
     })
   );
   const frontEdgeLines = new THREE.LineSegments(frontEdgeGeo, opticalEdgeMat);
@@ -251,25 +252,40 @@ export function buildVcaSlabAssembly(
     })
   );
   const graphiteMat = trackMat(
-    new THREE.MeshStandardMaterial({
-      color: 0x1a2230,
-      roughness: 0.44,
-      roughnessMap: brushedRoughTex,
-      metalness: 0.48,
-      envMapIntensity: 1.45,
+    new THREE.MeshPhysicalMaterial({
+      color: 0xdbeafe,
+      roughness: 0.02,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.1,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.01,
+      envMapIntensity: 0.9,
+      depthWrite: false,
     })
   );
   const bezelMesh = new THREE.Mesh(bezelGeo, graphiteMat);
   bezelMesh.position.z = -bezelDepth / 2;
-  bezelMesh.castShadow = true;
-  bezelMesh.receiveShadow = true;
+  bezelMesh.renderOrder = 2;
   bezelMesh.userData.componentId = 'perimeter_bezel';
   components.perimeter_bezel.add(bezelMesh);
 
-  // Electric Cyan Precision Accent Collar Line around card window
+  const bezelEdgeGeo = trackGeo(new THREE.EdgesGeometry(bezelGeo, 26));
+  const bezelEdgeMat = trackMat(
+    new THREE.LineBasicMaterial({
+      color: 0xcbd5e1,
+      transparent: true,
+      opacity: 0.32,
+    })
+  );
+  const bezelEdgeLines = new THREE.LineSegments(bezelEdgeGeo, bezelEdgeMat);
+  bezelEdgeLines.position.copy(bezelMesh.position);
+  components.perimeter_bezel.add(bezelEdgeLines);
+
+  // Clean Hairline Window Collar around card pocket
   const cyanCollarShape = createRoundedRectPath(
-    metrics.internalCavityWidthMm + 3.4,
-    metrics.internalCavityHeightMm + 3.4,
+    metrics.internalCavityWidthMm + 3.0,
+    metrics.internalCavityHeightMm + 3.0,
     params.cornerRadiusMm * 0.65,
     0,
     cardCenterY
@@ -284,15 +300,15 @@ export function buildVcaSlabAssembly(
   const cyanShape = new THREE.Shape(cyanCollarShape.getPoints(32));
   cyanShape.holes.push(cyanInnerHole);
   const cyanCollarGeo = trackGeo(
-    new THREE.ExtrudeGeometry(cyanShape, { depth: 0.5, bevelEnabled: false })
+    new THREE.ExtrudeGeometry(cyanShape, { depth: 0.4, bevelEnabled: false })
   );
   const cyanAccentMat = trackMat(
     new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      emissive: 0x0369a1,
-      emissiveIntensity: 0.35,
-      roughness: 0.22,
-      metalness: 0.65,
+      color: 0x38bdf8,
+      roughness: 0.15,
+      metalness: 0.35,
+      transparent: true,
+      opacity: 0.38,
     })
   );
   const cyanCollarMesh = new THREE.Mesh(cyanCollarGeo, cyanAccentMat);
@@ -301,48 +317,75 @@ export function buildVcaSlabAssembly(
   components.perimeter_bezel.add(cyanCollarMesh);
   materialsToHighlight.set('perimeter_bezel', graphiteMat);
 
-  // 3. CERTIFICATION LABEL PLATE
-  const labelTex = trackTex(createCertLabelTexture(params, maxAnisotropy));
-  const labelPlateW = params.labelWidthMm - params.nfcPocketWidthMm - 2.2;
-  const labelPlateX = -(params.nfcPocketWidthMm + 2.2) / 2;
-  const labelMat = trackMat(
+  // 3. CERTIFICATION LABEL PLATE (Front Blue/Red VCA Trim + Back Dark-Navy UV/QR Strip)
+  const labelFrontTex = trackTex(createCertLabelTexture(params, maxAnisotropy));
+  const labelBackTex = trackTex(
+    createCertLabelBackTexture(params, maxAnisotropy, onTextureReady)
+  );
+  const labelPlateW = params.labelWidthMm - 1.2;
+  const labelFrontMat = trackMat(
     new THREE.MeshStandardMaterial({
-      map: labelTex,
-      roughness: 0.38,
-      metalness: 0.18,
+      map: labelFrontTex,
+      roughness: 0.56,
+      metalness: 0.06,
+      envMapIntensity: 0.32,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
     })
   );
-  const labelGeo = trackGeo(new THREE.BoxGeometry(labelPlateW, params.labelHeightMm - 1.2, 0.38));
-  const labelMesh = new THREE.Mesh(labelGeo, labelMat);
-  labelMesh.position.set(labelPlateX, labelCenterY, halfT - params.wallThicknessMm - 0.45);
+  const labelBackMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      map: labelBackTex,
+      roughness: 0.48,
+      metalness: 0.14,
+      envMapIntensity: 0.4,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    })
+  );
+  const labelEdgeMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      roughness: 0.45,
+      metalness: 0.1,
+    })
+  );
+  const labelCarrierZ = halfT - params.wallThicknessMm - 0.36;
+  const labelGeo = trackGeo(new THREE.BoxGeometry(labelPlateW, params.labelHeightMm - 1.2, 0.86));
+  const labelMesh = new THREE.Mesh(labelGeo, [
+    labelEdgeMat,
+    labelEdgeMat,
+    labelEdgeMat,
+    labelEdgeMat,
+    labelFrontMat,
+    labelBackMat,
+  ]);
+  labelMesh.position.set(0, labelCenterY, labelCarrierZ);
   labelMesh.userData.componentId = 'cert_label';
   components.cert_label.add(labelMesh);
-  materialsToHighlight.set('cert_label', labelMat);
+  materialsToHighlight.set('cert_label', labelFrontMat);
 
-  // 4. HOLOGRAPHIC SECURITY FOIL & QR VERIFICATION SEAL
+  // 4. HOLOGRAPHIC VCA SECURITY FOIL (Laminated inside label carrier when assembled; separates cleanly between Frame and Cert Label when exploded)
   const holoTex = trackTex(createHoloQrSealTexture(params.serialNumber, maxAnisotropy, onTextureReady));
   const holoMat = trackMat(
     new THREE.MeshPhysicalMaterial({
       map: holoTex,
-      roughness: 0.18,
+      roughness: 0.16,
       metalness: 0.72,
-      iridescence: 0.85,
-      iridescenceIOR: 1.4,
-      clearcoat: 0.9,
+      iridescence: 0.9,
+      iridescenceIOR: 1.45,
+      clearcoat: 1.0,
       polygonOffset: true,
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     })
   );
   const nfcCenterX = params.labelWidthMm / 2 - params.nfcPocketWidthMm / 2 - 1.5;
-  const holoGeo = trackGeo(
-    new THREE.BoxGeometry(params.nfcPocketWidthMm - 1.0, params.labelHeightMm - 1.2, 0.18)
-  );
+  const holoGeo = trackGeo(new THREE.BoxGeometry(16.5, 14.5, 0.08));
   const holoMesh = new THREE.Mesh(holoGeo, holoMat);
-  holoMesh.position.set(nfcCenterX, labelCenterY, halfT - params.wallThicknessMm - 0.15);
+  holoMesh.position.set(0, labelCenterY + 0.5, labelCarrierZ + 0.16);
   holoMesh.userData.componentId = 'hologram_qr_seal';
   components.hologram_qr_seal.add(holoMesh);
   materialsToHighlight.set('hologram_qr_seal', holoMat);
@@ -361,8 +404,8 @@ export function buildVcaSlabAssembly(
     new THREE.BoxGeometry(params.antennaOuterWidthMm + 1.2, params.antennaOuterHeightMm + 1.2, 0.08)
   );
   const flexMesh = new THREE.Mesh(flexGeo, flexMat);
-  const nfcPlaneZ = halfT - params.wallThicknessMm - 0.72;
-  flexMesh.position.set(nfcCenterX, labelCenterY, nfcPlaneZ - 0.06);
+  const nfcPlaneZ = labelCarrierZ;
+  flexMesh.position.set(nfcCenterX, labelCenterY, nfcPlaneZ - 0.04);
   flexMesh.userData.componentId = 'nfc_antenna';
   components.nfc_antenna.add(flexMesh);
 
@@ -412,13 +455,17 @@ export function buildVcaSlabAssembly(
     })
   );
   const chipGeo = trackGeo(
-    new THREE.BoxGeometry(params.nfcChipWidthMm, params.nfcChipLengthMm, params.nfcChipHeightMm)
+    new THREE.BoxGeometry(
+      params.nfcChipWidthMm,
+      params.nfcChipLengthMm,
+      Math.min(0.32, params.nfcChipHeightMm)
+    )
   );
   const chipMesh = new THREE.Mesh(chipGeo, chipMat);
   chipMesh.position.set(
     nfcCenterX,
     labelCenterY - params.antennaOuterHeightMm / 2 + 2.8,
-    nfcPlaneZ + params.nfcChipHeightMm / 2
+    nfcPlaneZ + 0.04
   );
   chipMesh.userData.componentId = 'nfc_chip';
   components.nfc_chip.add(chipMesh);
@@ -427,13 +474,13 @@ export function buildVcaSlabAssembly(
   const goldMat = trackMat(
     new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.2, metalness: 0.95 })
   );
-  const padGeo = trackGeo(new THREE.BoxGeometry(0.65, 0.45, 0.12));
+  const padGeo = trackGeo(new THREE.BoxGeometry(0.65, 0.45, 0.1));
   [-1, 1].forEach((side) => {
     const pad = new THREE.Mesh(padGeo, goldMat);
     pad.position.set(
       chipMesh.position.x + side * (params.nfcChipWidthMm / 2 + 0.45),
       chipMesh.position.y,
-      nfcPlaneZ + 0.05
+      nfcPlaneZ + 0.02
     );
     pad.userData.componentId = 'nfc_chip';
     components.nfc_chip.add(pad);
@@ -460,9 +507,10 @@ export function buildVcaSlabAssembly(
   innerPocketHole.closePath();
   pocketShape.holes.push(innerPocketHole);
 
+  const pocketDepth = Math.min(0.68, params.nfcPocketDepthMm);
   const pocketGeo = trackGeo(
     new THREE.ExtrudeGeometry(pocketShape, {
-      depth: params.nfcPocketDepthMm,
+      depth: pocketDepth,
       bevelEnabled: false,
     })
   );
@@ -476,7 +524,7 @@ export function buildVcaSlabAssembly(
     })
   );
   const pocketMesh = new THREE.Mesh(pocketGeo, pocketMat);
-  pocketMesh.position.set(nfcCenterX, labelCenterY, nfcPlaneZ - params.nfcPocketDepthMm);
+  pocketMesh.position.set(nfcCenterX, labelCenterY, nfcPlaneZ - pocketDepth / 2);
   pocketMesh.userData.componentId = 'nfc_compartment';
   components.nfc_compartment.add(pocketMesh);
   materialsToHighlight.set('nfc_compartment', pocketMat);
@@ -485,11 +533,11 @@ export function buildVcaSlabAssembly(
   if (params.useInnerSleeve) {
     const sleeveMat = trackMat(
       new THREE.MeshPhysicalMaterial({
-        color: 0xe0f2fe,
-        roughness: 0.14,
+        color: 0xffffff,
+        roughness: 0.01,
         metalness: 0.0,
         transparent: true,
-        opacity: 0.22,
+        opacity: 0.04,
         depthWrite: false,
       })
     );
@@ -516,15 +564,17 @@ export function buildVcaSlabAssembly(
   const cardFrontMat = trackMat(
     new THREE.MeshStandardMaterial({
       map: cardTextures.front,
-      roughness: 0.28,
-      metalness: 0.22,
+      roughness: 0.46,
+      metalness: 0.08,
+      envMapIntensity: 0.42,
     })
   );
   const cardBackMat = trackMat(
     new THREE.MeshStandardMaterial({
       map: cardTextures.back,
-      roughness: 0.42,
-      metalness: 0.08,
+      roughness: 0.48,
+      metalness: 0.06,
+      envMapIntensity: 0.42,
     })
   );
   const cardEdgeMat = trackMat(
@@ -607,11 +657,12 @@ export function buildVcaSlabAssembly(
   );
   const weldMat = trackMat(
     new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.25,
-      metalness: 0.45,
+      color: 0x7dd3fc,
+      roughness: 0.06,
+      metalness: 0.15,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.26,
+      depthWrite: false,
     })
   );
   const weldMesh = new THREE.Mesh(weldGeo, weldMat);
@@ -737,7 +788,7 @@ export function buildVcaSlabAssembly(
       const baseTr = Boolean(mat.userData.baseTransparent);
       if (f < 0.99) {
         mat.transparent = true;
-        mat.opacity = Math.max(0.12, baseOp * f);
+        mat.opacity = Math.max(0.025, baseOp * f);
       } else {
         mat.transparent = baseTr;
         mat.opacity = baseOp;
@@ -752,13 +803,17 @@ export function buildVcaSlabAssembly(
     if (enabled) {
       opticalEdgeMat.color.setHex(0x38bdf8);
       opticalEdgeMat.opacity = 0.92;
+      bezelEdgeMat.color.setHex(0x38bdf8);
+      bezelEdgeMat.opacity = 0.72;
       cradleOpticalMat.color.setHex(0x38bdf8);
-      cradleOpticalMat.opacity = 0.72;
+      cradleOpticalMat.opacity = 0.48;
     } else {
-      opticalEdgeMat.color.setHex(0xbae6fd);
-      opticalEdgeMat.opacity = 0.28;
-      cradleOpticalMat.color.setHex(0xbae6fd);
-      cradleOpticalMat.opacity = 0.54;
+      opticalEdgeMat.color.setHex(0xe2f1ff);
+      opticalEdgeMat.opacity = 0.44;
+      bezelEdgeMat.color.setHex(0xcbd5e1);
+      bezelEdgeMat.opacity = 0.32;
+      cradleOpticalMat.color.setHex(0xe0f2fe);
+      cradleOpticalMat.opacity = 0.14;
     }
   };
 

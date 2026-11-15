@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { MotionValue } from 'motion/react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { EngineeringMetrics } from '../cad/engineeringMath';
 import { buildCinematicStage, CinematicStageHandles } from '../cad/cinematicStage3D';
+import { buildStudioReflectionEnvironment } from '../cad/studioEnvironment';
 import {
   CreatedVideoFrameState,
   PositionedLeaderCallout,
@@ -32,6 +32,7 @@ interface SlabViewport3DProps {
   showCallouts: boolean;
   videoFrame?: CreatedVideoFrameState | null;
   blueprintMode?: boolean;
+  autoRotate?: boolean;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
   onLiveCalloutsUpdate?: (data: {
     callouts: PositionedLeaderCallout[];
@@ -72,6 +73,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
   showCallouts,
   videoFrame = null,
   blueprintMode = false,
+  autoRotate = false,
   onCanvasReady,
   onLiveCalloutsUpdate,
   onSelectComponent,
@@ -91,6 +93,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     showCallouts,
     videoFrame,
     blueprintMode,
+    autoRotate,
     onCanvasReady,
     onLiveCalloutsUpdate,
     onSelectComponent,
@@ -103,6 +106,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
   stateRef.current.showCallouts = showCallouts;
   stateRef.current.videoFrame = videoFrame;
   stateRef.current.blueprintMode = blueprintMode;
+  stateRef.current.autoRotate = autoRotate;
   stateRef.current.onCanvasReady = onCanvasReady;
   stateRef.current.onLiveCalloutsUpdate = onLiveCalloutsUpdate;
   stateRef.current.onSelectComponent = onSelectComponent;
@@ -162,20 +166,16 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     scene.background = new THREE.Color(0x03050a);
     scene.fog = new THREE.FogExp2(0x03050a, 0.0014);
 
-    // Studio reflection environment
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    const roomEnv = new RoomEnvironment();
-    const envRT = pmremGenerator.fromScene(roomEnv, 0.04);
-    scene.environment = envRT.texture;
-    roomEnv.dispose();
-    pmremGenerator.dispose();
+    // Dark-room studio softbox reflection environment (crystal-clear front glass + sharp chamfer glints)
+    const envTexture = buildStudioReflectionEnvironment(renderer);
+    scene.environment = envTexture;
 
-    // Three-point warm/cool studio softbox lighting matching VCA reference look
-    const hemiLight = new THREE.HemisphereLight(0xcfe8ff, 0x050811, 0.72);
+    // Three-point studio lighting sculpted for transparent crystal polycarbonate & vibrant card art
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x050811, 0.92);
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xf8fafc, 1.95);
-    keyLight.position.set(110, 140, 130);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.85);
+    keyLight.position.set(110, 140, 145);
     if (!isSoftwareGl) {
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
@@ -189,13 +189,13 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
       keyLight.shadow.normalBias = 0.02;
 
       RectAreaLightUniformsLib.init();
-      const softboxRight = new THREE.RectAreaLight(0x7dd3fc, 4.2, 65, 165);
-      softboxRight.position.set(95, 25, 110);
+      const softboxRight = new THREE.RectAreaLight(0x7dd3fc, 2.4, 52, 165);
+      softboxRight.position.set(135, 25, 68);
       softboxRight.lookAt(0, 0, 0);
       scene.add(softboxRight);
 
-      const softboxLeft = new THREE.RectAreaLight(0xe0f2fe, 3.0, 55, 150);
-      softboxLeft.position.set(-105, 40, 90);
+      const softboxLeft = new THREE.RectAreaLight(0xe0f2fe, 2.0, 48, 150);
+      softboxLeft.position.set(-135, 35, 65);
       softboxLeft.lookAt(0, 0, 0);
       scene.add(softboxLeft);
     }
@@ -402,8 +402,11 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
           }
         }
 
+        const shouldOrbit = !vFrame && Boolean(stateRef.current.autoRotate) && !isSoftwareGl;
+        controls.autoRotate = shouldOrbit;
+        controls.autoRotateSpeed = 1.65;
         const ctrlUpdated = controls.update();
-        if (ctrlUpdated && !isSoftwareGl) {
+        if ((ctrlUpdated || shouldOrbit) && !isSoftwareGl) {
           needsAnotherFrame = true;
         }
 
@@ -560,7 +563,7 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
       (grid.material as THREE.Material).dispose();
       shadowDiscGeo.dispose();
       shadowDiscMat.dispose();
-      envRT.dispose();
+      envTexture.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement);
@@ -630,10 +633,10 @@ export const SlabViewport3D: React.FC<SlabViewport3DProps> = ({
     eng.requestRender();
   }, [activeView, videoFrame]);
 
-  // Trigger render when videoFrame or blueprintMode advances
+  // Trigger render when videoFrame, blueprintMode, or autoRotate changes
   useEffect(() => {
     engineRef.current?.requestRender();
-  }, [videoFrame, blueprintMode]);
+  }, [videoFrame, blueprintMode, autoRotate]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#090C11]">

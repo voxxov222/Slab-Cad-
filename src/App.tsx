@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
 import { calculateEngineeringMetrics, generateBom } from './cad/engineeringMath';
 import {
+  CONTACT_EMAIL_STORAGE_KEY,
+  DEFAULT_CONTACT_EMAIL,
   DEFAULT_GITHUB_CAD_URL,
   GITHUB_CAD_STORAGE_KEY,
   parseAppModeAndEmbedFromSearch,
+  sanitizeContactEmail,
   sanitizeGitHubRepoUrl,
 } from './cad/embedConfig';
 import { DEFAULT_SLAB_PARAMETERS, SlabParameters } from './cad/types';
@@ -42,6 +45,16 @@ function loadSavedGithubUrl(): string {
   }
 }
 
+function loadSavedContactEmail(): string {
+  if (typeof window === 'undefined') return DEFAULT_CONTACT_EMAIL;
+  try {
+    const saved = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY);
+    return saved ? sanitizeContactEmail(saved) : DEFAULT_CONTACT_EMAIL;
+  } catch {
+    return DEFAULT_CONTACT_EMAIL;
+  }
+}
+
 export default function App() {
   const routeState = useMemo(() => readInitialRouteState(), []);
   const [activeSection, setActiveSection] = useState<AppSection>(() =>
@@ -52,6 +65,7 @@ export default function App() {
     ...routeState.paramOverrides,
   }));
   const [githubUrl, setGithubUrl] = useState<string>(loadSavedGithubUrl);
+  const [contactEmail, setContactEmail] = useState<string>(loadSavedContactEmail);
   const [embedModalOpen, setEmbedModalOpen] = useState<boolean>(false);
   const [videoLaunchReq, setVideoLaunchReq] = useState<{
     id: number;
@@ -64,6 +78,16 @@ export default function App() {
     setGithubUrl(clean);
     try {
       window.localStorage.setItem(GITHUB_CAD_STORAGE_KEY, clean);
+    } catch {
+      // ignore storage failure
+    }
+  };
+
+  const handleUpdateContactEmail = (nextEmail: string) => {
+    const clean = sanitizeContactEmail(nextEmail);
+    setContactEmail(clean);
+    try {
+      window.localStorage.setItem(CONTACT_EMAIL_STORAGE_KEY, clean);
     } catch {
       // ignore storage failure
     }
@@ -166,6 +190,8 @@ export default function App() {
         metrics={metrics}
         githubUrl={githubUrl}
         onChangeGithubUrl={handleUpdateGithubUrl}
+        contactEmail={contactEmail}
+        onChangeContactEmail={handleUpdateContactEmail}
       />
     </div>
   );

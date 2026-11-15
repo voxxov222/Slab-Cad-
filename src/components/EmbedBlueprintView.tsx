@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { animate, useMotionValue } from 'motion/react';
-import { ExternalLink, FileCode2, Layers, Minimize2, Tag } from 'lucide-react';
+import { ExternalLink, FileCode2, Layers, Minimize2, RotateCw, Tag } from 'lucide-react';
 import { calculateEngineeringMetrics } from '../cad/engineeringMath';
 import { generateBlueprintSvg } from '../cad/blueprintSvg';
 import {
@@ -29,6 +29,7 @@ export const EmbedBlueprintView: React.FC<EmbedBlueprintViewProps> = ({
   const [isExploded, setIsExploded] = useState<boolean>(initialEmbed.explode);
   const [showCallouts, setShowCallouts] = useState<boolean>(initialEmbed.callouts);
   const [showHud, setShowHud] = useState<boolean>(initialEmbed.hud);
+  const [isAnimating, setIsAnimating] = useState<boolean>(initialEmbed.animate);
   const [render2dSvg, setRender2dSvg] = useState<boolean>(false);
   const [selectedComponent, setSelectedComponent] = useState<SlabComponentId | null>(null);
 
@@ -76,6 +77,7 @@ export const EmbedBlueprintView: React.FC<EmbedBlueprintViewProps> = ({
         explode?: boolean;
         callouts?: boolean;
         hud?: boolean;
+        animate?: boolean;
         mode2d?: boolean;
         params?: Partial<SlabParameters>;
       } | null;
@@ -86,6 +88,7 @@ export const EmbedBlueprintView: React.FC<EmbedBlueprintViewProps> = ({
       if (typeof msg.explode === 'boolean') animateExplode(msg.explode);
       if (typeof msg.callouts === 'boolean') setShowCallouts(msg.callouts);
       if (typeof msg.hud === 'boolean') setShowHud(msg.hud);
+      if (typeof msg.animate === 'boolean') setIsAnimating(msg.animate);
       if (typeof msg.mode2d === 'boolean') setRender2dSvg(msg.mode2d);
       if (msg.params && typeof msg.params === 'object') {
         setParams((prev) => ({ ...prev, ...msg.params }));
@@ -141,6 +144,7 @@ export const EmbedBlueprintView: React.FC<EmbedBlueprintViewProps> = ({
           sectionOffsetMm={0}
           showCallouts={showCallouts}
           blueprintMode={isBlueprintVisual}
+          autoRotate={isAnimating}
           onSelectComponent={setSelectedComponent}
         />
       )}
@@ -230,18 +234,32 @@ export const EmbedBlueprintView: React.FC<EmbedBlueprintViewProps> = ({
         </button>
 
         {!render2dSvg && (
-          <button
-            type="button"
-            onClick={() => setShowCallouts((v) => !v)}
-            className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border cursor-pointer whitespace-nowrap transition-colors ${
-              showCallouts
-                ? 'border-[#38BDF8] text-[#38BDF8] bg-[#0EA5E9]/15'
-                : 'border-[#1E3A5F] text-[#94A3B8] hover:text-white bg-[#0B1628]'
-            }`}
-          >
-            <Tag className="w-3 h-3" />
-            <span>Callouts</span>
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsAnimating((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border cursor-pointer whitespace-nowrap transition-colors ${
+                isAnimating
+                  ? 'border-[#38BDF8] text-[#38BDF8] bg-[#0EA5E9]/15'
+                  : 'border-[#1E3A5F] text-[#94A3B8] hover:text-white bg-[#0B1628]'
+              }`}
+            >
+              <RotateCw className="w-3 h-3" />
+              <span>Animate 3D</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCallouts((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border cursor-pointer whitespace-nowrap transition-colors ${
+                showCallouts
+                  ? 'border-[#38BDF8] text-[#38BDF8] bg-[#0EA5E9]/15'
+                  : 'border-[#1E3A5F] text-[#94A3B8] hover:text-white bg-[#0B1628]'
+              }`}
+            >
+              <Tag className="w-3 h-3" />
+              <span>Callouts</span>
+            </button>
+          </>
         )}
 
         <a

@@ -266,13 +266,16 @@ export function generateBomCsv(bom: BomItem[]): string {
 export function generateManufacturerRfqSpec(
   params: SlabParameters,
   metrics: EngineeringMetrics,
-  bom: BomItem[]
+  bom: BomItem[],
+  contactEmail: string = 'tosmond@vcaslabs.com'
 ): string {
   const poly = POLYMER_SPECS[params.polymerGrade];
+  const safeEmail = contactEmail.trim() || 'tosmond@vcaslabs.com';
   return `# VCA — VERIFIED CARD AUTHORITY
 ## MANUFACTURER REQUEST FOR QUOTATION (RFQ) & TOOLING SPECIFICATION
 **Project:** VCA Next-Generation NFC-Authenticated Certified Trading Card Slab
 **Reference Identity:** ${params.serialNumber}
+**Engineering & RFQ Contact:** ${safeEmail}
 **Target Website:** https://vcaslabs.com
 
 ---
